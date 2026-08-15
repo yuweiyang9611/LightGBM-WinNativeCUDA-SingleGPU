@@ -1,3 +1,17 @@
+# Windows Native CUDA Single-GPU Fork
+
+> [!IMPORTANT]
+> This is an **unofficial community fork**, not an official LightGBM release.
+> It adds a native Windows x64 CUDA backend for one selected NVIDIA GPU
+> (`USE_NCCL=OFF`), with an `sm_89` cubin and `compute_89` PTX fallback.
+> See the [Windows CUDA build and compatibility guide](docs/Windows原生单显卡LightGBM_CUDA版本构建.md)
+> and the [downloadable releases](https://github.com/yuweiyang9611/LightGBM-WinNativeCUDA-SingleGPU/releases).
+
+> 这是非官方社区 fork，面向 Windows x64 原生单 GPU CUDA。兼容范围、源码构建、
+> 离线 pip 安装和验证方法请阅读上面的构建文档；预编译包请从 Releases 下载。
+
+---
+
 <img src=https://github.com/lightgbm-org/LightGBM/blob/main/docs/logo/LightGBM_logo_black_text.svg width=300 />
 
 > [!NOTE]

@@ -48,13 +48,13 @@ typedef double label_t;
 typedef float label_t;
 #endif
 
-const score_t kMinScore = -std::numeric_limits<score_t>::infinity();
+constexpr score_t kMinScore = -std::numeric_limits<score_t>::infinity();
 
-const score_t kMaxScore = std::numeric_limits<score_t>::infinity();
+constexpr score_t kMaxScore = std::numeric_limits<score_t>::infinity();
 
-const score_t kEpsilon = 1e-15f;
+constexpr score_t kEpsilon = 1e-15f;
 
-const double kZeroThreshold = 1e-35f;
+constexpr double kZeroThreshold = 1e-35f;
 
 
 typedef int32_t comm_size_t;
@@ -78,7 +78,7 @@ typedef void(*AllgatherFunction)(char* input, comm_size_t input_size, const comm
 
 #define NO_SPECIFIC (-1)
 
-const int kAlignedSize = 32;
+constexpr int kAlignedSize = 32;
 
 #define SIZE_ALIGNED(t) ((t) + kAlignedSize - 1) / kAlignedSize * kAlignedSize
 

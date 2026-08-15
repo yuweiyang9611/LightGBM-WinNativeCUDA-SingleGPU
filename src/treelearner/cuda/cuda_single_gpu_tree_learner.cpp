@@ -562,9 +562,10 @@ void CUDASingleGPUTreeLearner::AllocateBitset() {
         max_cat_num_bin = std::max(bin_mapper->num_bin(), max_cat_num_bin);
       }
     }
-    // std::max(..., 1UL) to avoid error in the case when there are NaN's in the categorical values
-    const size_t cuda_bitset_max_size = std::max(static_cast<size_t>((max_cat_value + 31) / 32), 1UL);
-    const size_t cuda_bitset_inner_max_size = std::max(static_cast<size_t>((max_cat_num_bin + 31) / 32), 1UL);
+    // std::max(..., size_t{1}) avoids an empty allocation when categorical values contain NaNs.
+    // size_t is unsigned long long on 64-bit Windows, while unsigned long remains 32-bit.
+    const size_t cuda_bitset_max_size = std::max(static_cast<size_t>((max_cat_value + 31) / 32), size_t{1});
+    const size_t cuda_bitset_inner_max_size = std::max(static_cast<size_t>((max_cat_num_bin + 31) / 32), size_t{1});
     AllocateCUDAMemory<uint32_t>(&cuda_bitset_, cuda_bitset_max_size, __FILE__, __LINE__);
     AllocateCUDAMemory<uint32_t>(&cuda_bitset_inner_, cuda_bitset_inner_max_size, __FILE__, __LINE__);
     const int max_cat_in_split = std::min(config_->max_cat_threshold, max_cat_num_bin / 2);

@@ -7,9 +7,7 @@
 #ifndef LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_HPP_
 #define LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_HPP_
 
-#ifdef USE_CUDA
-
-#include <pthread.h>
+#if defined(USE_CUDA) && defined(USE_NCCL)
 
 #include <LightGBM/objective_function.h>
 #include <LightGBM/network.h>
@@ -142,5 +140,5 @@ class NCCLGBDT: public GBDT_T {
 
 }  // namespace LightGBM
 
-#endif  // USE_CUDA
+#endif  // defined(USE_CUDA) && defined(USE_NCCL)
 #endif  // LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_HPP_

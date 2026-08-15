@@ -195,6 +195,11 @@ if ! python -m build --version >/dev/null; then
     exit 1
 fi
 
+if test "${PRECOMPILE}" = true && ! python -m wheel version >/dev/null 2>&1; then
+    echo "'wheel' is required to package a precompiled Windows DLL. Install it with 'pip install wheel' or similar."
+    exit 1
+fi
+
 # create a new directory that just contains the files needed
 # to build the Python-package
 create_isolated_source_dir() {
@@ -415,6 +420,44 @@ if test "${BUILD_WHEEL}" = true; then
     # in some implementations of xargs
     # ref: https://stackoverflow.com/a/8296746
     echo "--wheel --outdir ../dist ${BUILD_ARGS} ." | xargs python -m build
+
+    # Hatchling treats a precompiled DLL as package data and otherwise emits
+    # a py3-none-any filename. Retag the wheel so pip cannot install this
+    # Windows-native binary distribution on an incompatible operating system.
+    if test "${PRECOMPILE}" = true && test -f ./lightgbm/lib/lib_lightgbm.dll; then
+        PRECOMPILED_WHEEL="$(echo ../dist/lightgbm*.whl)"
+        PYTHON_PLATFORM_TAG="$(python -c 'import sysconfig; print(sysconfig.get_platform().replace("-", "_").replace(".", "_"))')"
+        if test -n "${LIGHTGBM_WHEEL_BUILD_TAG:-}"; then
+            RETAGGED_WHEEL_NAME="$(python -m wheel tags \
+                --platform-tag="${PYTHON_PLATFORM_TAG}" \
+                --build="${LIGHTGBM_WHEEL_BUILD_TAG}" \
+                --remove \
+                "${PRECOMPILED_WHEEL}")"
+        else
+            RETAGGED_WHEEL_NAME="$(python -m wheel tags \
+                --platform-tag="${PYTHON_PLATFORM_TAG}" \
+                --remove \
+                "${PRECOMPILED_WHEEL}")"
+        fi
+        RETAGGED_WHEEL="../dist/$(basename "${RETAGGED_WHEEL_NAME}")"
+        echo "${RETAGGED_WHEEL_NAME}"
+
+        # The package root contains a native DLL, so install it through the
+        # platform-library scheme as well as carrying a Windows platform tag.
+        WHEEL_UNPACK_ROOT="./precompiled-wheel-unpack"
+        rm -rf "${WHEEL_UNPACK_ROOT}"
+        python -m wheel unpack --dest "${WHEEL_UNPACK_ROOT}" "${RETAGGED_WHEEL}"
+        WHEEL_METADATA="$(find "${WHEEL_UNPACK_ROOT}" -path '*/lightgbm-*.dist-info/WHEEL' -print -quit)"
+        if test -z "${WHEEL_METADATA}"; then
+            echo "[ERROR] cannot find WHEEL metadata in the precompiled package. Aborting"
+            exit 1
+        fi
+        sed -i.bak -e 's/^Root-Is-Purelib: true$/Root-Is-Purelib: false/' "${WHEEL_METADATA}"
+        rm -f "${WHEEL_METADATA}.bak" "${RETAGGED_WHEEL}"
+        UNPACKED_PACKAGE_DIR="$(dirname "$(dirname "${WHEEL_METADATA}")")"
+        python -m wheel pack --dest ../dist "${UNPACKED_PACKAGE_DIR}"
+        rm -rf "${WHEEL_UNPACK_ROOT}"
+    fi
 fi
 
 if test "${INSTALL}" = true; then

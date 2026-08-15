@@ -7,7 +7,7 @@
 #ifndef LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_COMPONENT_HPP_
 #define LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_COMPONENT_HPP_
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) && defined(USE_NCCL)
 
 #include <LightGBM/objective_function.h>
 #include <LightGBM/tree.h>
@@ -99,6 +99,6 @@ class NCCLGBDTComponent: public NCCLInfo {
 
 }  // namespace LightGBM
 
-#endif  // USE_CUDA
+#endif  // defined(USE_CUDA) && defined(USE_NCCL)
 
 #endif  // LIGHTGBM_SRC_BOOSTING_CUDA_NCCL_GBDT_COMPONENT_HPP_

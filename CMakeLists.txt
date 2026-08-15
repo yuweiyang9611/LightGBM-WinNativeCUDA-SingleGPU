@@ -11,6 +11,7 @@ option(USE_SWIG "Enable SWIG to generate Java API" OFF)
 option(USE_TIMETAG "Set to ON to output time costs" OFF)
 option(USE_CUDA "Enable CUDA-accelerated training " OFF)
 option(USE_ROCM "Enable ROCm-accelerated training " OFF)
+option(USE_NCCL "Enable NCCL/RCCL multi-GPU communication for CUDA/ROCm" ON)
 option(USE_DEBUG "Set to ON for Debug mode" OFF)
 option(USE_SANITIZER "Use sanitizer flags" OFF)
 set(
@@ -127,6 +128,10 @@ set(FAST_DOUBLE_PARSER_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external_libs/fast_dou
 include_directories(${FAST_DOUBLE_PARSER_INCLUDE_DIR})
 
 set(FMT_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external_libs/fmt/include")
+if(USE_CUDA AND MSVC)
+  include(cmake/WindowsCudaFmtPatch.cmake)
+  prepare_fmt_for_msvc_cuda(FMT_INCLUDE_DIR)
+endif()
 include_directories(${FMT_INCLUDE_DIR})
 
 if(BUILD_CPP_TEST AND MSVC)
@@ -240,9 +245,22 @@ if(__INTEGRATE_OPENCL)
 endif()
 
 if(USE_CUDA)
-    find_package(NCCL REQUIRED)
+    if(USE_NCCL)
+      find_package(NCCL REQUIRED)
+      message(STATUS "CUDA multi-GPU communication: NCCL enabled")
+    else()
+      message(STATUS "CUDA multi-GPU communication: NCCL disabled (single GPU only)")
+    endif()
     include_directories(${CUDAToolkit_INCLUDE_DIRS})
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS} -Xcompiler=-fPIC -Xcompiler=-Wall")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+    if(MSVC)
+      # nvcc forwards these options to cl.exe. Unix-only flags such as -fPIC
+      # and -Wall make native Windows CUDA builds fail during host compilation.
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=/utf-8 -Xcompiler=/bigobj")
+      add_definitions(-DNOMINMAX)
+    else()
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fPIC -Xcompiler=-Wall")
+    endif()
     if(USE_DEBUG)
       set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g")
     else()
@@ -287,6 +305,10 @@ if(USE_ROCM)
     # Exceptions to this will be guarded by USE_ROCM.
     add_definitions(-DUSE_CUDA)
     add_definitions(-DUSE_ROCM)
+endif()
+
+if(USE_NCCL AND (USE_CUDA OR USE_ROCM))
+    add_definitions(-DUSE_NCCL)
 endif()
 
 include(CheckCXXSourceCompiles)
@@ -439,7 +461,6 @@ set(
     LGBM_CUDA_SOURCES
       src/boosting/cuda/cuda_score_updater.cpp
       src/boosting/cuda/cuda_score_updater.cu
-      src/boosting/cuda/nccl_gbdt.cpp
       src/metric/cuda/cuda_binary_metric.cpp
       src/metric/cuda/cuda_pointwise_metric.cpp
       src/metric/cuda/cuda_regression_metric.cpp
@@ -473,6 +494,10 @@ set(
       src/cuda/cuda_algorithms.cu
 )
 
+if(USE_NCCL)
+  list(APPEND LGBM_CUDA_SOURCES src/boosting/cuda/nccl_gbdt.cpp)
+endif()
+
 if(USE_CUDA OR USE_ROCM)
   list(APPEND LGBM_SOURCES ${LGBM_CUDA_SOURCES})
 endif()
@@ -489,6 +514,13 @@ if(USE_ROCM)
 endif()
 
 add_library(lightgbm_objs OBJECT ${LGBM_SOURCES})
+if(USE_CUDA AND MSVC)
+  # /utf-8 is forwarded to cl.exe, but NVCC's device front-end does not use
+  # that host-only option when fmt checks its execution character set.
+  target_compile_definitions(
+    lightgbm_objs PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:FMT_UNICODE=0>
+  )
+endif()
 if(NOT __BUILD_FOR_R)
   target_link_libraries(lightgbm_objs PRIVATE nanoarrow_static)
 endif()
@@ -607,12 +639,12 @@ if(USE_GPU)
   target_link_libraries(lightgbm_objs PUBLIC ${OpenCL_LIBRARY} ${Boost_LIBRARIES})
 endif()
 
-if(USE_CUDA)
+if(USE_CUDA AND USE_NCCL)
   target_link_libraries(lightgbm_objs PUBLIC NCCL::NCCL)
 endif()
 
-if(USE_ROCM)
-  find_package(rccl)
+if(USE_ROCM AND USE_NCCL)
+  find_package(rccl REQUIRED)
   target_link_libraries(lightgbm_objs PUBLIC ${RCCL_LIBRARY})
 endif()
 
@@ -636,15 +668,36 @@ if(USE_CUDA)
   set_target_properties(
     _lightgbm
     PROPERTIES
+      CUDA_SEPARABLE_COMPILATION ON
       CUDA_RESOLVE_DEVICE_SYMBOLS ON
   )
 
+  # The Visual Studio CUDA targets only run nvcc's device-link step when the
+  # final target owns at least one CUDA source.  The CUDA implementation lives
+  # in lightgbm_objs, so add a no-op translation unit to make that step visible
+  # to MSBuild and resolve the registered fat binaries from the object library.
+  if(MSVC AND CMAKE_GENERATOR MATCHES "^Visual Studio")
+    target_sources(_lightgbm PRIVATE src/cuda/cuda_link.cu)
+  endif()
+  if(MSVC)
+    # LightGBM uses MSVC's dynamic CRT (/MD). Selecting cudart.lib avoids the
+    # conflicting LIBCMT directive in cudart_static.lib; CUDA 13.2 implements
+    # this Windows runtime choice with its hybrid loader.
+    set_property(TARGET _lightgbm PROPERTY CUDA_RUNTIME_LIBRARY Shared)
+  endif()
   if(BUILD_CLI)
     set_target_properties(
       lightgbm
       PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
         CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
+    if(MSVC AND CMAKE_GENERATOR MATCHES "^Visual Studio")
+      target_sources(lightgbm PRIVATE src/cuda/cuda_link.cu)
+    endif()
+    if(MSVC)
+      set_property(TARGET lightgbm PROPERTY CUDA_RUNTIME_LIBRARY Shared)
+    endif()
   endif()
 endif()
 

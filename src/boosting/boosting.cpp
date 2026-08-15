@@ -12,9 +12,9 @@
 #include "gbdt.h"
 #include "rf.hpp"
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) && defined(USE_NCCL)
 #include "cuda/nccl_gbdt.hpp"
-#endif  // USE_CUDA
+#endif  // defined(USE_CUDA) && defined(USE_NCCL)
 
 namespace LightGBM {
 
@@ -49,17 +49,23 @@ Boosting* Boosting::CreateBoosting(const std::string& type, const char* filename
   num_gpu
   #endif  // USE_CUDA
   ) {
+  #if defined(USE_CUDA) && !defined(USE_NCCL)
+  if (device_type == std::string("cuda") && num_gpu > 1) {
+    Log::Fatal("CUDA multi-GPU training requires an NCCL-enabled build. "
+               "Set num_gpu=1 or rebuild with CMake option -DUSE_NCCL=ON.");
+  }
+  #endif  // defined(USE_CUDA) && !defined(USE_NCCL)
   if (filename == nullptr || filename[0] == '\0') {
     if (type == std::string("gbdt")) {
-      #ifdef USE_CUDA
+      #if defined(USE_CUDA) && defined(USE_NCCL)
       if (device_type == std::string("cuda") && num_gpu > 1) {
         return new NCCLGBDT<GBDT>();
       } else {
-      #endif  // USE_CUDA
+      #endif  // defined(USE_CUDA) && defined(USE_NCCL)
         return new GBDT();
-      #ifdef USE_CUDA
+      #if defined(USE_CUDA) && defined(USE_NCCL)
       }
-      #endif  // USE_CUDA
+      #endif  // defined(USE_CUDA) && defined(USE_NCCL)
     } else if (type == std::string("dart")) {
       return new DART();
     } else if (type == std::string("goss")) {
@@ -73,15 +79,15 @@ Boosting* Boosting::CreateBoosting(const std::string& type, const char* filename
     std::unique_ptr<Boosting> ret;
     if (GetBoostingTypeFromModelFile(filename) == std::string("tree")) {
       if (type == std::string("gbdt")) {
-        #ifdef USE_CUDA
+        #if defined(USE_CUDA) && defined(USE_NCCL)
         if (device_type == std::string("cuda") && num_gpu > 1) {
           ret.reset(new NCCLGBDT<GBDT>());
         } else {
-        #endif  // USE_CUDA
+        #endif  // defined(USE_CUDA) && defined(USE_NCCL)
           ret.reset(new GBDT());
-        #ifdef USE_CUDA
+        #if defined(USE_CUDA) && defined(USE_NCCL)
         }
-        #endif  // USE_CUDA
+        #endif  // defined(USE_CUDA) && defined(USE_NCCL)
       } else if (type == std::string("dart")) {
         ret.reset(new DART());
       } else if (type == std::string("goss")) {

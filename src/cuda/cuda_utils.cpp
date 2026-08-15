@@ -49,11 +49,19 @@ void CUDAStreamDestroy(cudaStream_t cuda_stream) {
 }
 
 void NCCLGroupStart() {
+#if defined(USE_NCCL)
   NCCLCHECK(ncclGroupStart());
+#else
+  Log::Fatal("CUDA collective communication is unavailable because this build was compiled with USE_NCCL=OFF");
+#endif
 }
 
 void NCCLGroupEnd() {
+#if defined(USE_NCCL)
   NCCLCHECK(ncclGroupEnd());
+#else
+  Log::Fatal("CUDA collective communication is unavailable because this build was compiled with USE_NCCL=OFF");
+#endif
 }
 
 }  // namespace LightGBM
