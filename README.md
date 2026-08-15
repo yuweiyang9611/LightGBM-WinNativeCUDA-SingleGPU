@@ -9,6 +9,8 @@
 
 > 这是非官方社区 fork，面向 Windows x64 原生单 GPU CUDA。兼容范围、源码构建、
 > 离线 pip 安装和验证方法请阅读上面的构建文档；预编译包请从 Releases 下载。
+> 没有 Python 和 VC++ Runtime 的离线测试机可使用
+> [零安装便携测试包](packaging/windows_cuda_portable/README.md)，解压后双击运行。
 
 ---
 

@@ -40,6 +40,11 @@ index or network access with:
 .\install_offline_wheel.ps1 -PythonExecutable "C:\path\to\python.exe"
 ```
 
+That wheelhouse still requires Python and the Microsoft C++ runtime on the
+target machine. For a no-install test machine, build the self-contained
+[portable bundle](../../packaging/windows_cuda_portable/README.md), which
+includes an isolated CPython runtime and app-local MSVC/OpenMP DLLs.
+
 When producing a precompiled wheel, an optional PEP 427 build tag can identify
 the CUDA variant without changing LightGBM's Python package version:
 
