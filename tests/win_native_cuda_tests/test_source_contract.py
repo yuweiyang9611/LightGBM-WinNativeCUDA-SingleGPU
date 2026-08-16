@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -136,13 +135,13 @@ def test_visual_studio_final_targets_trigger_cuda_device_link() -> None:
 def test_windows_runner_stages_dll_outputs_and_checks_python_dependencies() -> None:
     runner = _read("tests/win_native_cuda_tests/run_windows_cuda_tests.ps1")
 
-    assert 'import narwhals, numpy, pytest, scipy' in runner
+    assert "import narwhals, numpy, pytest, scipy" in runner
     assert 'Join-Path $RepoRoot ".venv\\Scripts\\python.exe"' in runner
     assert '[string]$CudaArchitectures = "89-real;89-virtual"' in runner
     assert '"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$ArtifactDirectory"' in runner
     assert '"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=$ArtifactDirectory"' in runner
     assert 'Join-Path $ArtifactDirectory "lib_lightgbm.dll"' in runner
-    assert '--all-fatbin --list-ptx $BuiltDll.FullName' in runner
+    assert "--all-fatbin --list-ptx $BuiltDll.FullName" in runner
 
 
 def test_precompiled_windows_wheel_receives_a_platform_tag() -> None:

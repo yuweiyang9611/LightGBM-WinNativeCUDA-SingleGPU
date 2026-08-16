@@ -155,6 +155,9 @@ jobs:
       - name: Build portable bundle
         id: bundle
         shell: pwsh
+        env:
+          VC_RUNTIME_CRT: ${{ steps.msvc.outputs.crt }}
+          VC_RUNTIME_OPENMP: ${{ steps.msvc.outputs.openmp }}
         run: |
           $InputDirectory = "${{ runner.temp }}\portable-inputs"
           $Wheelhouses = @(Get-ChildItem -LiteralPath $InputDirectory -Filter "*cp311-offline.zip" -File)
@@ -178,7 +181,7 @@ jobs:
             -ExpectedWheelhouseSha256 $ExpectedWheelhouseHash `
             -PythonEmbedZip (Join-Path $InputDirectory "python-3.11.9-embed-amd64.zip") `
             -ExpectedPythonEmbedSha256 $env:PYTHON_EMBED_SHA256 `
-            -VcRuntimeDirectories "${{ steps.msvc.outputs.crt }}", "${{ steps.msvc.outputs.openmp }}" `
+            -VcRuntimeDirectories $env:VC_RUNTIME_CRT, $env:VC_RUNTIME_OPENMP `
             -OutputRoot $OutputRoot `
             -BundleName $BundleName `
             -BuildPythonExecutable "python"

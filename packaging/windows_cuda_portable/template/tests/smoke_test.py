@@ -15,6 +15,7 @@ from typing import Any
 
 
 def query_nvidia_gpus() -> list[dict[str, Any]]:
+    """Return the NVIDIA GPUs reported by ``nvidia-smi``."""
     command = [
         "nvidia-smi",
         "--query-gpu=index,name,compute_cap,driver_version",
@@ -50,6 +51,7 @@ def query_nvidia_gpus() -> list[dict[str, Any]]:
 
 
 def validate_release_compatibility(gpu: dict[str, Any], force_ptx_jit: bool) -> str:
+    """Validate the selected GPU and return its expected CUDA code path."""
     capability = tuple(gpu["compute_capability_tuple"])
     driver_branch = int(gpu["driver_branch"])
     if capability < (8, 9):
@@ -63,13 +65,13 @@ def validate_release_compatibility(gpu: dict[str, Any], force_ptx_jit: bool) -> 
         return "sm_89 native cubin (expected)"
     if driver_branch < 595:
         raise RuntimeError(
-            "The compute_89 PTX JIT path requires an R595-or-newer driver; "
-            f"found {gpu['driver_version']}"
+            f"The compute_89 PTX JIT path requires an R595-or-newer driver; found {gpu['driver_version']}"
         )
     return "compute_89 PTX JIT (expected)"
 
 
 def write_result(path: Path, payload: dict[str, Any]) -> None:
+    """Atomically write the portable verification result as JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(path.suffix + ".tmp")
     temporary_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -77,6 +79,7 @@ def write_result(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
+    """Run the portable CUDA smoke test and return a process exit code."""
     result_path_text = os.environ.get("LIGHTGBM_TEST_RESULT")
     if not result_path_text:
         raise RuntimeError("LIGHTGBM_TEST_RESULT was not set by the portable launcher")
@@ -106,11 +109,11 @@ def main() -> int:
             raise RuntimeError(f"GPU device ID {gpu_device_id} was not reported by nvidia-smi")
         result["expected_cuda_code_path"] = validate_release_compatibility(selected_gpu, force_ptx_jit)
 
-        import lightgbm as lgb
-        import narwhals
-        import numpy as np
-        import scipy
-        from lightgbm.libpath import _find_lib_path
+        import lightgbm as lgb  # noqa: I001, PLC0415
+        import narwhals  # noqa: PLC0415
+        import numpy as np  # noqa: PLC0415
+        import scipy  # noqa: PLC0415
+        from lightgbm.libpath import _find_lib_path  # noqa: PLC0415
 
         result["versions"] = {
             "lightgbm": lgb.__version__,
@@ -170,11 +173,13 @@ def main() -> int:
                 "constant_baseline_mse": baseline_mse,
             }
         )
-        print(f"GPU: {selected_gpu['name']} (CC {selected_gpu['compute_capability']})")
-        print(f"Driver: {selected_gpu['driver_version']}")
-        print(f"Expected code path: {result['expected_cuda_code_path']}")
-        print(f"LightGBM: {lgb.__version__}; trees={model.num_trees()}; MSE={model_mse:.6f}")
-        print("Windows native CUDA LightGBM verification passed")
+        sys.stdout.write(
+            f"GPU: {selected_gpu['name']} (CC {selected_gpu['compute_capability']})\n"
+            f"Driver: {selected_gpu['driver_version']}\n"
+            f"Expected code path: {result['expected_cuda_code_path']}\n"
+            f"LightGBM: {lgb.__version__}; trees={model.num_trees()}; MSE={model_mse:.6f}\n"
+            "Windows native CUDA LightGBM verification passed\n"
+        )
         return 0
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
