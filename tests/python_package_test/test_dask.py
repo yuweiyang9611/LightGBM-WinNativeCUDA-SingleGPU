@@ -765,6 +765,13 @@ def test_ranker(output, group, boosting_type, tree_learner, cluster):
             assert tree_df.loc[node_uses_cat_col, "decision_type"].unique()[0] == "=="
 
 
+@pytest.mark.xfail(
+    platform.lower().startswith("darwin"),
+    reason=(
+        "learning-to-rank Dask tests are unreliable on macOS. "
+        "See https://github.com/lightgbm-org/LightGBM/issues/4074#issuecomment-3124996317"
+    ),
+)
 @pytest.mark.parametrize("output", ["array", "dataframe", "dataframe-with-categorical"])
 def test_ranker_custom_objective(output, cluster):
     with Client(cluster) as client:
