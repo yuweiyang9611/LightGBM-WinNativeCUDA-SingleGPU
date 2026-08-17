@@ -1606,9 +1606,11 @@ def test_predict_returns_expected_dtypes(task, output, cluster):
         model = model_factory(**params)
         model.fit(dX, dy, group=dg)
 
-        # use a small sub-sample (to keep the tests fast)
+        # Use a small, non-empty sub-sample (to keep the tests fast). Sampling
+        # with a tiny fraction can randomly return no rows, whose prediction
+        # dtype is determined by Dask's empty metadata rather than LightGBM.
         if output.startswith("dataframe"):
-            dX_sample = dX.sample(frac=0.001)
+            dX_sample = dX.partitions[0].head(n=1, compute=False)
         else:
             dX_sample = dX[:1,]
             dX_sample.persist()
