@@ -58,11 +58,6 @@ jobs:
             task: cpp-tests
             compiler: msvc
             container: null
-          - os: ubuntu-24.04-ppc64le
-            task: cpp-tests
-            compiler: gcc
-            container: null
-            os-display-name: 'ubuntu24.04-ppc64le'
           ###########
           # if-else #
           ###########

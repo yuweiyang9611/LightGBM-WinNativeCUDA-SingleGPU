@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import lightgbm as lgb
 import numpy as np
 
+import lightgbm as lgb
 
 rng = np.random.default_rng(20260816)
 features = rng.normal(size=(4096, 24)).astype(np.float32)

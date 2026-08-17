@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DLL_ENV_VAR = "LIGHTGBM_CUDA_DLL"
 
@@ -80,7 +79,7 @@ def _assert_subprocess_passed(result: subprocess.CompletedProcess[str]) -> None:
     assert result.returncode == 0, f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
 
 
-@pytest.mark.parametrize("force_ptx_jit", (False, True), ids=("native-cubin", "forced-ptx-jit"))
+@pytest.mark.parametrize("force_ptx_jit", [False, True], ids=("native-cubin", "forced-ptx-jit"))
 def test_single_gpu_cuda_training(
     staged_lightgbm: tuple[Path, Path],
     force_ptx_jit: bool,

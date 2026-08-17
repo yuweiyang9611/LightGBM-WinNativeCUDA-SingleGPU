@@ -29,10 +29,11 @@ repos:
     rev: '2.0.2'
     hooks:
       - id: cpplint
+        # Keep the upstream LIGHTGBM_* header guards. cpplint otherwise derives
+        # a fork-specific prefix from the GitHub checkout directory name.
         args:
-          - --root=..  # workaround to get correct header guard pattern
           - --recursive
-          - --filter=-build/include_subdir,-whitespace/line_length
+          - --filter=-build/header_guard,-build/include_subdir,-whitespace/line_length
   - repo: local
     hooks:
       - id: check-omp-pragmas

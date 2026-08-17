@@ -719,6 +719,59 @@ pip --no-index --find-links <当前离线包目录>
 Windows native CUDA LightGBM verification passed
 ```
 
-目标电脑不需要安装 CUDA Toolkit、CMake 或 Visual Studio，但仍需要兼容的 NVIDIA 驱动和 Microsoft Visual C++ x64 Runtime（包括 `VCOMP140.dll`）。
+这条 wheelhouse 安装路径的目标电脑不需要安装 CUDA Toolkit、CMake 或
+Visual Studio，但仍需要兼容的 NVIDIA 驱动、CPython 3.11 和 Microsoft
+Visual C++ x64 Runtime（包括 `VCOMP140.dll`）。
+
+---
+
+# 10. 使用零安装便携测试包
+
+对于只有 Windows x64、兼容 NVIDIA GPU 和驱动的离线测试机，使用
+Release 中的：
+
+```text
+lightgbm-<version>-<build>-win_amd64-cp311-portable.zip
+```
+
+它在离线 wheelhouse 之上额外包含：
+
+* 官方 CPython 3.11 embeddable runtime；
+* 直接放在 `python.exe` 同目录的 MSVC 14.51+ CRT 和 OpenMP DLL；
+* 包内 SHA-256 完整性清单；
+* GPU / Compute Capability / 驱动预检查与 CUDA 训练冒烟测试；
+* JSON 结果和控制台日志。
+
+解压到可写目录或 U 盘后，双击：
+
+```text
+START_TEST.cmd
+```
+
+结果位于：
+
+```text
+results\<machine-time>\result.json
+results\<machine-time>\console.log
+```
+
+启动器不安装 Python、VC++ Runtime 或其他系统组件，不修改注册表和系统
+`PATH`。Python 临时文件与 CUDA JIT 缓存限制在当次结果目录中，结束后自动
+删除。保存结果后，删除整个解压目录即可清理应用自身产生的文件。
+
+使用其他 GPU 编号：
+
+```powershell
+.\run_portable_test.ps1 -GpuDeviceId 1
+```
+
+强制验证 PTX JIT 路径：
+
+```powershell
+.\run_portable_test.ps1 -GpuDeviceId 0 -ForcePtxJit
+```
+
+便携包的可复现构建、第三方运行库来源和“不污染”边界说明见
+[`packaging/windows_cuda_portable/README.md`](../packaging/windows_cuda_portable/README.md)。
 
 [1]: https://github.com/lightgbm-org/LightGBM/blob/main/python-package/README.rst "LightGBM/python-package/README.rst at main · lightgbm-org/LightGBM · GitHub"

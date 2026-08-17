@@ -1,0 +1,230 @@
+name: Windows CUDA portable bundle
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/windows_cuda_portable.yml'
+      - 'packaging/windows_cuda_portable/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/windows_cuda_portable.yml'
+      - 'packaging/windows_cuda_portable/**'
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag that already contains the CPython 3.11 offline wheelhouse
+        required: true
+        type: string
+      publish_to_release:
+        description: Upload the generated portable ZIP and checksum to that release
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: windows-cuda-portable-${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: none
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+  PYTHON_EMBED_URL: https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
+  PYTHON_EMBED_SHA256: 009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b
+
+jobs:
+  validate-sources:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate PowerShell and Python syntax
+        shell: pwsh
+        run: |
+          $PowerShellFiles = @(
+            "packaging\windows_cuda_portable\build_portable_bundle.ps1",
+            "packaging\windows_cuda_portable\template\run_portable_test.ps1"
+          )
+          foreach ($PowerShellFile in $PowerShellFiles) {
+            $Tokens = $null
+            $Errors = $null
+            [void][Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $PowerShellFile),
+              [ref]$Tokens,
+              [ref]$Errors
+            )
+            if ($Errors.Count -ne 0) {
+              throw "PowerShell syntax errors in ${PowerShellFile}: $($Errors | Out-String)"
+            }
+          }
+          python -m py_compile packaging\windows_cuda_portable\template\tests\smoke_test.py
+
+  build:
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
+    needs:
+      - validate-sources
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.bundle.outputs.artifact_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download release wheelhouse and checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Path "${{ runner.temp }}\portable-inputs" | Out-Null
+          gh release download $env:RELEASE_TAG `
+            --pattern "*cp311-offline.zip" `
+            --pattern "SHA256SUMS-release.txt" `
+            --dir "${{ runner.temp }}\portable-inputs"
+
+      - name: Download and verify CPython embeddable runtime
+        shell: pwsh
+        run: |
+          $PythonEmbed = "${{ runner.temp }}\portable-inputs\python-3.11.9-embed-amd64.zip"
+          Invoke-WebRequest -Uri $env:PYTHON_EMBED_URL -OutFile $PythonEmbed
+          $ActualHash = (Get-FileHash -LiteralPath $PythonEmbed -Algorithm SHA256).Hash
+          if ($ActualHash -ne $env:PYTHON_EMBED_SHA256) {
+            throw "CPython embeddable ZIP checksum mismatch: $ActualHash"
+          }
+
+      - name: Locate MSVC 14.51 x64 app-local runtimes
+        id: msvc
+        shell: pwsh
+        run: |
+          $VsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $InstallationPath = & $VsWhere `
+            -latest `
+            -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath |
+            Select-Object -First 1
+          if (-not $InstallationPath) {
+            throw "Visual Studio with the x64 C++ toolchain was not found."
+          }
+
+          $RedistRoot = Join-Path $InstallationPath "VC\Redist\MSVC"
+          $SelectedCrt = $null
+          $SelectedOpenMp = $null
+          $VersionDirectories = Get-ChildItem -LiteralPath $RedistRoot -Directory |
+            Sort-Object { [Version]$_.Name } -Descending
+          foreach ($VersionDirectory in $VersionDirectories) {
+            if ([Version]$VersionDirectory.Name -lt [Version]"14.51.0.0") {
+              continue
+            }
+            $X64Directory = Join-Path $VersionDirectory.FullName "x64"
+            $Crt = Get-ChildItem -LiteralPath $X64Directory -Directory -Filter "Microsoft.VC*.CRT" |
+              Select-Object -First 1
+            $OpenMp = Get-ChildItem -LiteralPath $X64Directory -Directory -Filter "Microsoft.VC*.OpenMP" |
+              Select-Object -First 1
+            if ($Crt -and $OpenMp) {
+              $SelectedCrt = $Crt.FullName
+              $SelectedOpenMp = $OpenMp.FullName
+              break
+            }
+          }
+          if (-not $SelectedCrt -or -not $SelectedOpenMp) {
+            throw "MSVC 14.51 or newer x64 CRT and OpenMP redistributable directories were not found."
+          }
+          "crt=$SelectedCrt" >> $env:GITHUB_OUTPUT
+          "openmp=$SelectedOpenMp" >> $env:GITHUB_OUTPUT
+
+      - name: Build portable bundle
+        id: bundle
+        shell: pwsh
+        env:
+          VC_RUNTIME_CRT: ${{ steps.msvc.outputs.crt }}
+          VC_RUNTIME_OPENMP: ${{ steps.msvc.outputs.openmp }}
+        run: |
+          $InputDirectory = "${{ runner.temp }}\portable-inputs"
+          $Wheelhouses = @(Get-ChildItem -LiteralPath $InputDirectory -Filter "*cp311-offline.zip" -File)
+          if ($Wheelhouses.Count -ne 1) {
+            throw "Expected exactly one CPython 3.11 offline wheelhouse, found $($Wheelhouses.Count)."
+          }
+          $Wheelhouse = $Wheelhouses[0]
+          $ChecksumManifest = Join-Path $InputDirectory "SHA256SUMS-release.txt"
+          $ChecksumLines = @(Get-Content -LiteralPath $ChecksumManifest | Where-Object {
+            $_ -match ("  " + [Regex]::Escape($Wheelhouse.Name) + "$")
+          })
+          if ($ChecksumLines.Count -ne 1) {
+            throw "The release checksum manifest does not contain exactly one entry for $($Wheelhouse.Name)."
+          }
+          $ExpectedWheelhouseHash = ($ChecksumLines[0] -split "  ", 2)[0]
+          $BundleName = [IO.Path]::GetFileNameWithoutExtension($Wheelhouse.Name) -replace "-offline$", "-portable"
+          $OutputRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts"
+
+          & .\packaging\windows_cuda_portable\build_portable_bundle.ps1 `
+            -WheelhouseZip $Wheelhouse.FullName `
+            -ExpectedWheelhouseSha256 $ExpectedWheelhouseHash `
+            -PythonEmbedZip (Join-Path $InputDirectory "python-3.11.9-embed-amd64.zip") `
+            -ExpectedPythonEmbedSha256 $env:PYTHON_EMBED_SHA256 `
+            -VcRuntimeDirectories $env:VC_RUNTIME_CRT, $env:VC_RUNTIME_OPENMP `
+            -OutputRoot $OutputRoot `
+            -BundleName $BundleName `
+            -BuildPythonExecutable "python"
+
+          $BundleZip = Get-Item -LiteralPath (Join-Path $OutputRoot ($BundleName + ".zip"))
+          $BundleHash = (Get-FileHash -LiteralPath $BundleZip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ChecksumPath = $BundleZip.FullName + ".sha256"
+          [IO.File]::WriteAllText($ChecksumPath, "$BundleHash  $($BundleZip.Name)`n")
+          $ArtifactName = "windows-cuda-portable-$env:RELEASE_TAG"
+          "artifact_name=$ArtifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ steps.bundle.outputs.artifact_name }}
+          path: |
+            artifacts/*-portable.zip
+            artifacts/*-portable.zip.sha256
+          if-no-files-found: error
+
+  publish:
+    if: ${{ github.event_name == 'release' || inputs.publish_to_release }}
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download portable bundle artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: artifacts
+
+      - name: Upload portable bundle to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Assets = @(Get-ChildItem -LiteralPath artifacts -File)
+          if ($Assets.Count -ne 2) {
+            throw "Expected the portable ZIP and its checksum, found $($Assets.Count) files."
+          }
+          $AssetPaths = @($Assets.FullName)
+          gh release upload $env:RELEASE_TAG @AssetPaths --repo $env:GITHUB_REPOSITORY

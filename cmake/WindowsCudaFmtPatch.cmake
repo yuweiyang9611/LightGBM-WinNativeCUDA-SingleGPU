@@ -27,11 +27,18 @@ function(prepare_fmt_for_msvc_cuda output_variable)
   set(_fmt_format_patched "${_fmt_patched_dir}/format.h")
   file(READ "${_fmt_format_source}" _fmt_format_content)
 
-  set(_fmt_cuda_utf32_original [=[  return U"\x9999999a\x828f5c29\x80418938\x80068db9\x8000a7c6\x800010c7"
-         U"\x800001ae\x8000002b"[index];]=])
-  set(_fmt_cuda_utf32_replacement [=[  return uint32_t(u"\x9999\x828f\x8041\x8006\x8000\x8000\x8000\x8000"[index])
-             << 16u |
-         uint32_t(u"\x999a\x5c29\x8938\x8db9\xa7c6\x10c7\x01ae\x002b"[index]);]=])
+  string(CONCAT _fmt_cuda_utf32_original
+    [=[  return U"\x9999999a\x828f5c29\x80418938\x80068db9\x8000a7c6\x800010c7"]=]
+    "\n"
+    [=[         U"\x800001ae\x8000002b"[index];]=]
+  )
+  string(CONCAT _fmt_cuda_utf32_replacement
+    [=[  return uint32_t(u"\x9999\x828f\x8041\x8006\x8000\x8000\x8000\x8000"[index])]=]
+    "\n"
+    [=[             << 16u |]=]
+    "\n"
+    [=[         uint32_t(u"\x999a\x5c29\x8938\x8db9\xa7c6\x10c7\x01ae\x002b"[index]);]=]
+  )
 
   string(FIND "${_fmt_format_content}" "${_fmt_cuda_utf32_original}" _fmt_original_position)
   if(NOT _fmt_original_position EQUAL -1)
