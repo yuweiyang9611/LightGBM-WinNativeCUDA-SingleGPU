@@ -86,7 +86,7 @@
             <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Windows x64 · CUDA 13.2</p>
             <h1 id="hero-title">
               把单 GPU CUDA<br>
-              <span>做成可构建、可安装、可验证的 Windows 工程。</span>
+              <span class="hero-highlight">做成可构建、可安装、可验证的 Windows 工程。</span>
             </h1>
             <p class="hero-lede">
               本项目完成了 LightGBM CUDA 训练链路的 Windows 原生适配：从
@@ -94,10 +94,10 @@
               <strong>CUDA 设备链接</strong>，一直打通到 Windows wheel、离线包和零安装便携测试包。
               Python 调用方式保持不变。
             </p>
-            <div class="hero-actions" aria-label="项目入口">
+            <nav class="hero-actions" aria-label="项目入口">
               <a class="button button-primary" href="#changes">查看实现细节 <span aria-hidden="true">↘</span></a>
               <a class="button button-quiet" href="https://github.com/yuweiyang9611/LightGBM-WinNativeCUDA-SingleGPU">浏览源码 <span aria-hidden="true">↗</span></a>
-            </div>
+            </nav>
             <ul class="hero-facts" aria-label="核心信息">
               <li><span>构建基线</span><strong>CUDA Toolkit 13.2.51</strong></li>
               <li><span>代码架构</span><strong>sm_89 + compute_89 PTX</strong></li>
@@ -105,7 +105,7 @@
             </ul>
           </div>
 
-          <div class="hero-console" aria-label="CUDA 构建配置示意">
+          <section class="hero-console" aria-label="CUDA 构建配置示意">
             <div class="console-bar">
               <div class="console-lights" aria-hidden="true"><span></span><span></span><span></span></div>
               <span>build.windows.cuda</span>
@@ -131,7 +131,7 @@
               <div><span class="prompt">›</span> CUDA_ARCH <strong>89-real;89-virtual</strong></div>
               <div class="console-result"><span aria-hidden="true">✓</span> lib_lightgbm.dll</div>
             </div>
-          </div>
+          </section>
         </div>
       </section>
 
