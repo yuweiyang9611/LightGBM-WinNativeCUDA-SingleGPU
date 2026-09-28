@@ -5053,6 +5053,32 @@ def test_reset_parameter_updates_interaction_constraints(initial_constraints, up
             assert root["split_feature"] == 0
 
 
+@pytest.mark.parametrize("renew_leaf", [False, True])
+def test_quantized_training_resizes_leaf_state_on_reset(renew_leaf):
+    rng = np.random.default_rng(1729)
+    x = rng.normal(size=(4096, 8))
+    y = 3 * x[:, 0] - x[:, 1] + x[:, 2] ** 2
+    params = {
+        "objective": "regression",
+        "device_type": "cpu",
+        "use_quantized_grad": True,
+        "quant_train_renew_leaf": renew_leaf,
+        "num_leaves": 2,
+        "num_threads": 4,
+        "max_bin": 31,
+        "seed": 1729,
+        "verbosity": -1,
+    }
+    model = lgb.train(params, lgb.Dataset(x, label=y), num_boost_round=1, keep_training_booster=True)
+    for leaves in [16, 4, 31, 2]:
+        model.reset_parameter({"num_leaves": leaves})
+        model.update()
+    assert [tree["num_leaves"] for tree in model.dump_model()["tree_info"]] == [2, 16, 4, 31, 2]
+    predictions = model.predict(x)
+    assert np.isfinite(predictions).all()
+    np.testing.assert_allclose(model._Booster__inner_predict(data_idx=0), predictions, rtol=0, atol=1e-9)
+
+
 def test_equal_predict_from_row_major_and_col_major_data():
     X_row, y = make_synthetic_regression()
     assert X_row.flags["C_CONTIGUOUS"]

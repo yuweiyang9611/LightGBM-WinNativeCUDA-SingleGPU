@@ -166,6 +166,9 @@ void SerialTreeLearner::ResetConfig(const Config* config) {
     // push split information for all leaves
     best_split_per_leaf_.resize(config_->num_leaves);
     data_partition_->ResetLeaves(config_->num_leaves);
+    if (gradient_discretizer_ != nullptr) {
+      gradient_discretizer_->ResetNumLeaves(config_->num_leaves);
+    }
   } else {
     config_ = config;
   }

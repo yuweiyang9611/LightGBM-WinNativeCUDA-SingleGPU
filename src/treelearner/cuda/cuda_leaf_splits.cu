@@ -57,6 +57,7 @@ __global__ void CUDAInitValuesKernel2(
   __syncthreads();
   const double sum_of_hessians = ShuffleReduceSum<double>(thread_sum_of_hessians, shared_mem_buffer, blockDim.x);
   if (threadIdx.x == 0) {
+    cuda_sum_of_gradients[0] = sum_of_gradients;
     cuda_sum_of_hessians[0] = sum_of_hessians;
     cuda_struct->leaf_index = 0;
     cuda_struct->sum_of_gradients = sum_of_gradients;
@@ -140,6 +141,7 @@ __global__ void CUDAInitValuesKernel4(
     reinterpret_cast<int64_t*>(shared_mem_buffer),
     blockDim.x);
   if (threadIdx.x == 0) {
+    cuda_sum_of_gradients[0] = sum_of_gradients;
     cuda_sum_of_hessians[0] = sum_of_hessians;
     cuda_struct->leaf_index = 0;
     cuda_struct->sum_of_gradients = sum_of_gradients;

@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Quantized continuation, changing leaf budgets and multi-block root statistics have dedicated regressions. See [the continuation and root-statistics fixes](../../docs/CUDA_QUANTIZED_CONTINUATION_FIX.md).
+
 Known optimal numerical and categorical stumps check split quality as well as routing and counts. See [the split-search optimality fixes](../../docs/CUDA_SPLIT_OPTIMALITY_FIX.md).
 
 Large-bin and histogram-width boundaries, plus real Visual Studio incremental device linking, are covered too. See [the large histogram and build fixes](../../docs/CUDA_LARGE_HISTOGRAM_AND_LINK_FIX.md). The build regression runs when `LIGHTGBM_TEST_CMAKE` is set; the PowerShell build/test runner sets it automatically.

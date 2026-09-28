@@ -49,13 +49,7 @@ void GradientDiscretizer::Init(
   inverse_gradient_scale_ = 0.0f;
   inverse_hessian_scale_ = 0.0f;
 
-  num_leaves_ = num_leaves;
-  leaf_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
-  node_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
-  global_leaf_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
-  global_node_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
-
-  leaf_grad_hess_stats_.resize(num_leaves_ * 2, 0.0);
+  ResetNumLeaves(num_leaves);
   change_hist_bits_buffer_.resize(num_features);
   #pragma omp parallel for schedule(static) num_threads(num_threads)
   for (int feature_index = 0; feature_index < num_features; ++feature_index) {

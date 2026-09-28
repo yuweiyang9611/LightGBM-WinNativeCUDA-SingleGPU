@@ -54,6 +54,15 @@ class GradientDiscretizer {
     const data_size_t num_data, const int num_leaves,
     const int num_features, const Dataset* train_data);
 
+  void ResetNumLeaves(const int num_leaves) {
+    num_leaves_ = num_leaves;
+    leaf_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
+    node_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
+    global_leaf_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
+    global_node_num_bits_in_histogram_bin_.resize(num_leaves_, 0);
+    leaf_grad_hess_stats_.resize(static_cast<size_t>(num_leaves_) * 2, 0.0);
+  }
+
   template <bool IS_GLOBAL>
   void SetNumBitsInHistogramBin(
     const int left_leaf_index, const int right_leaf_index,

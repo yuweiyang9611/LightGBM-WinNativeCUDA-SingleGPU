@@ -92,19 +92,17 @@ __global__ void DiscretizeGradientsKernel(
   const score_t* input_hessians,
   const score_t* grad_scale_ptr,
   const score_t* hess_scale_ptr,
-  const int iter,
-  const int* random_values_use_start,
+  const data_size_t random_values_use_start,
   const score_t* gradient_random_values,
   const score_t* hessian_random_values,
   const int grad_discretize_bins,
   int16_t* output_gradients_and_hessians_ptr) {
-  const int start = random_values_use_start[iter];
   const data_size_t index = static_cast<data_size_t>(threadIdx.x + blockIdx.x * blockDim.x);
   const score_t grad_scale = *grad_scale_ptr;
   const score_t hess_scale = *hess_scale_ptr;
   if (index < num_data) {
     if (STOCHASTIC_ROUNDING) {
-      const data_size_t index_offset = (index + start) % num_data;
+      const data_size_t index_offset = (index + random_values_use_start) % num_data;
       const score_t gradient = input_gradients[index];
       const score_t hessian = input_hessians[index];
       const score_t gradient_random_value = gradient_random_values[index_offset];
@@ -128,6 +126,7 @@ void CUDAGradientDiscretizer::DiscretizeGradients(
   const data_size_t num_data,
   const score_t* input_gradients,
   const score_t* input_hessians) {
+  const data_size_t random_values_use_start = random_values_use_start_dist_(random_values_use_start_eng_);
   ReduceMinMaxKernel<<<num_reduce_blocks_, CUDA_GRADIENT_DISCRETIZER_BLOCK_SIZE>>>(
     num_data, input_gradients, input_hessians,
     grad_min_block_buffer_.RawData(),
@@ -163,8 +162,7 @@ void CUDAGradientDiscretizer::DiscretizeGradients(
     input_hessians, \
     grad_min_block_buffer_.RawData(), \
     hess_min_block_buffer_.RawData(), \
-    iter_, \
-    random_values_use_start_.RawData(), \
+    random_values_use_start, \
     gradient_random_values_.RawData(), \
     hessian_random_values_.RawData(), \
     num_grad_quant_bins_, \

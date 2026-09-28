@@ -446,6 +446,11 @@ void CUDASingleGPUTreeLearner::ResetConfig(const Config* config) {
     leaf_data_start_.resize(config_->num_leaves, 0);
     leaf_sum_gradients_.resize(config_->num_leaves, 0.0f);
     leaf_sum_hessians_.resize(config_->num_leaves, 0.0f);
+    if (cuda_gradient_discretizer_ != nullptr) {
+      cuda_gradient_discretizer_->ResetNumLeaves(config_->num_leaves);
+      cuda_leaf_gradient_stat_buffer_.Resize(config_->num_leaves);
+      cuda_leaf_hessian_stat_buffer_.Resize(config_->num_leaves);
+    }
   }
   cuda_histogram_constructor_->ResetConfig(config);
   select_features_by_node_ = !config_->interaction_constraints_vector.empty() || config_->feature_fraction_bynode < 1.0;

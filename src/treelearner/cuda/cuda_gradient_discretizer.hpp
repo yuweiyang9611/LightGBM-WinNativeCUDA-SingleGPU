@@ -66,21 +66,13 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
     grad_max_block_buffer_.Resize(num_reduce_blocks_);
     hess_min_block_buffer_.Resize(num_reduce_blocks_);
     hess_max_block_buffer_.Resize(num_reduce_blocks_);
-    random_values_use_start_.Resize(num_trees_);
     gradient_random_values_.Resize(num_data);
     hessian_random_values_.Resize(num_data);
 
     std::vector<score_t> gradient_random_values(num_data, 0.0f);
     std::vector<score_t> hessian_random_values(num_data, 0.0f);
-    std::vector<int> random_values_use_start(num_trees_, 0);
 
     const int num_threads = OMP_NUM_THREADS();
-
-    std::mt19937 random_values_use_start_eng = std::mt19937(random_seed_);
-    std::uniform_int_distribution<data_size_t> random_values_use_start_dist = std::uniform_int_distribution<data_size_t>(0, num_data);
-    for (int tree_index = 0; tree_index < num_trees_; ++tree_index) {
-      random_values_use_start[tree_index] = random_values_use_start_dist(random_values_use_start_eng);
-    }
 
     int num_blocks = 0;
     data_size_t block_size = 0;
@@ -101,7 +93,6 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
 
     CopyFromHostToCUDADevice<score_t>(gradient_random_values_.RawData(), gradient_random_values.data(), gradient_random_values.size(), __FILE__, __LINE__);
     CopyFromHostToCUDADevice<score_t>(hessian_random_values_.RawData(), hessian_random_values.data(), hessian_random_values.size(), __FILE__, __LINE__);
-    CopyFromHostToCUDADevice<int>(random_values_use_start_.RawData(), random_values_use_start.data(), random_values_use_start.size(), __FILE__, __LINE__);
     iter_ = 0;
   }
 
@@ -112,7 +103,6 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
   mutable CUDAVector<score_t> grad_max_block_buffer_;
   mutable CUDAVector<score_t> hess_min_block_buffer_;
   mutable CUDAVector<score_t> hess_max_block_buffer_;
-  CUDAVector<int> random_values_use_start_;
   CUDAVector<score_t> gradient_random_values_;
   CUDAVector<score_t> hessian_random_values_;
   int num_reduce_blocks_;
