@@ -52,3 +52,7 @@ the CUDA variant without changing LightGBM's Python package version:
 .\.venv\Scripts\python.exe -m pip install build wheel
 $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 ```
+
+## Kernel correctness regressions
+
+The runner also checks NaN routing for training and validation, and verifies histogram counts against independently predicted leaf membership. See [the correctness fix and local validation record](../../docs/CUDA_KERNEL_CORRECTNESS_FIX.md). Optional `validate_frozen_input.py` tests a separately exported local fixture without installing packages or starting a full research workflow.
