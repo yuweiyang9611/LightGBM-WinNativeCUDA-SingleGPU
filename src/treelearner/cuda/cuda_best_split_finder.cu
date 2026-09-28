@@ -1156,7 +1156,7 @@ __device__ void FindBestSplitsForLeafKernelInner_GlobalMemory(
     }
   } else {
     for (unsigned int bin = threadIdx_x; bin < feature_num_bin_minus_offset; bin += blockDim.x) {
-      const bool skip_sum = bin >= static_cast<unsigned int>(task->na_as_missing) &&
+      const bool skip_sum = bin < static_cast<unsigned int>(task->na_as_missing) ||
         (task->skip_default_bin && (task->num_bin - 1 - bin) == static_cast<int>(task->default_bin));
       if (!skip_sum) {
         const unsigned int read_index = feature_num_bin_minus_offset - 1 - bin;
@@ -1179,8 +1179,8 @@ __device__ void FindBestSplitsForLeafKernelInner_GlobalMemory(
   GlobalMemoryPrefixSum(hist_hess_buffer_ptr, static_cast<size_t>(feature_num_bin_minus_offset));
   if (REVERSE) {
     for (unsigned int bin = threadIdx_x; bin < feature_num_bin_minus_offset; bin += blockDim.x) {
-      const bool skip_sum = (bin >= static_cast<unsigned int>(task->na_as_missing) &&
-        (task->skip_default_bin && (task->num_bin - 1 - bin) == static_cast<int>(task->default_bin)));
+      const bool skip_sum = bin < static_cast<unsigned int>(task->na_as_missing) ||
+        (task->skip_default_bin && (task->num_bin - 1 - bin) == static_cast<int>(task->default_bin));
       if (!skip_sum) {
         const double sum_right_gradient = hist_grad_buffer_ptr[bin];
         const double sum_right_hessian = hist_hess_buffer_ptr[bin];
@@ -1196,7 +1196,7 @@ __device__ void FindBestSplitsForLeafKernelInner_GlobalMemory(
             sum_right_hessian, lambda_l1,
             lambda_l2, path_smooth, left_count, right_count, parent_output);
           // gain with split is worse than without split
-          if (current_gain > min_gain_shift) {
+          if (current_gain > min_gain_shift && current_gain - min_gain_shift > local_gain) {
             local_gain = current_gain - min_gain_shift;
             threshold_value = static_cast<uint32_t>(task->num_bin - 2 - bin);
             threshold_found = true;
@@ -1224,7 +1224,7 @@ __device__ void FindBestSplitsForLeafKernelInner_GlobalMemory(
             sum_right_hessian, lambda_l1,
             lambda_l2, path_smooth, left_count, right_count, parent_output);
           // gain with split is worse than without split
-          if (current_gain > min_gain_shift) {
+          if (current_gain > min_gain_shift && current_gain - min_gain_shift > local_gain) {
             local_gain = current_gain - min_gain_shift;
             threshold_value = (task->na_as_missing && task->mfb_offset == 1) ?
               bin : static_cast<uint32_t>(bin + task->mfb_offset);
@@ -1372,7 +1372,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
               sum_other_gradient, sum_other_hessian, grad,
               hess + kEpsilon, lambda_l1,
               l2, path_smooth, other_count, cnt, parent_output);
-            if (current_gain > min_gain_shift) {
+            if (current_gain > min_gain_shift && current_gain - min_gain_shift > local_gain) {
               best_threshold = bin;
               local_gain = current_gain - min_gain_shift;
               threshold_found = true;
@@ -1390,8 +1390,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
     if (threshold_found && threadIdx_x == best_thread_index) {
       cuda_best_split_info->is_valid = true;
       cuda_best_split_info->num_cat_threshold = 1;
-      cuda_best_split_info->cat_threshold = new uint32_t[1];
-      *(cuda_best_split_info->cat_threshold) = static_cast<uint32_t>(best_threshold);
+      *(cuda_best_split_info->cat_threshold) = static_cast<uint32_t>(best_threshold + task->mfb_offset);
       cuda_best_split_info->default_left = false;
       const int bin_offset = (best_threshold << 1);
       const hist_t sum_left_gradient = feature_hist_ptr[bin_offset];
@@ -1418,35 +1417,34 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
         sum_right_hessian, lambda_l1, l2, right_output);
     }
   } else {
-    __shared__ uint16_t shared_mem_buffer_uint16[WARPSIZE];
+    __shared__ uint32_t shared_mem_buffer_uint32[WARPSIZE];
     __shared__ int used_bin;
     l2 += cat_l2;
-    uint16_t is_valid_bin = 0;
+    uint32_t is_valid_bin = 0;
     int best_dir = 0;
     double best_sum_left_gradient = 0.0f;
     double best_sum_left_hessian = 0.0f;
-    for (int bin = 0; bin < bin_end; bin += static_cast<int>(blockDim.x)) {
-      if (bin >= bin_start) {
-        const int bin_offset = (bin << 1);
-        const double hess = feature_hist_ptr[bin_offset + 1];
-        if (__double2int_rn(hess * cnt_factor) >= cat_smooth) {
-          const double grad = feature_hist_ptr[bin_offset];
-          hist_stat_buffer_ptr[bin] = grad / (hess + cat_smooth);
-          hist_index_buffer_ptr[bin] = threadIdx_x;
-          is_valid_bin = 1;
-        } else {
-          hist_stat_buffer_ptr[bin] = kMaxScore;
-          hist_index_buffer_ptr[bin] = -1;
-        }
+    for (int bin = static_cast<int>(threadIdx_x); bin < bin_end; bin += static_cast<int>(blockDim.x)) {
+      const int bin_offset = (bin << 1);
+      const double hess = feature_hist_ptr[bin_offset + 1];
+      if (bin >= bin_start && __double2int_rn(hess * cnt_factor) >= cat_smooth) {
+        const double grad = feature_hist_ptr[bin_offset];
+        hist_stat_buffer_ptr[bin] = grad / (hess + cat_smooth);
+        hist_index_buffer_ptr[bin] = bin;
+        ++is_valid_bin;
+      } else {
+        hist_stat_buffer_ptr[bin] = kMaxScore;
+        hist_index_buffer_ptr[bin] = -1;
       }
     }
     __syncthreads();
-    const int local_used_bin = ShuffleReduceSum<uint16_t>(is_valid_bin, shared_mem_buffer_uint16, blockDim.x);
+    const int local_used_bin = ShuffleReduceSum<uint32_t>(is_valid_bin, shared_mem_buffer_uint32, blockDim.x);
     if (threadIdx_x == 0) {
       used_bin = local_used_bin;
     }
     __syncthreads();
-    BitonicArgSortDevice<double, data_size_t, true, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER, 11>(
+    // The local sorting depth must match the 256-thread shared-memory tile.
+    BitonicArgSortDevice<double, data_size_t, true, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER, 9>(
       hist_stat_buffer_ptr, hist_index_buffer_ptr, task->num_bin - task->mfb_offset);
     const int max_num_cat = min(max_cat_threshold, (used_bin + 1) / 2);
     if (USE_RAND) {
@@ -1468,9 +1466,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
       hist_hess_buffer_ptr[0] += kEpsilon;
     }
     __syncthreads();
-    GlobalMemoryPrefixSum<double>(hist_grad_buffer_ptr, static_cast<size_t>(bin_end));
+    GlobalMemoryPrefixSum<double>(hist_grad_buffer_ptr, static_cast<size_t>(max_num_cat));
     __syncthreads();
-    GlobalMemoryPrefixSum<double>(hist_hess_buffer_ptr, static_cast<size_t>(bin_end));
+    GlobalMemoryPrefixSum<double>(hist_hess_buffer_ptr, static_cast<size_t>(max_num_cat));
     for (int bin = static_cast<int>(threadIdx_x); bin < used_bin && bin < max_num_cat; bin += static_cast<int>(blockDim.x)) {
       const double sum_left_gradient = hist_grad_buffer_ptr[bin];
       const double sum_left_hessian = hist_hess_buffer_ptr[bin];
@@ -1485,7 +1483,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
           sum_right_hessian, lambda_l1,
           l2, path_smooth, left_count, right_count, parent_output);
         // gain with split is worse than without split
-        if (current_gain > min_gain_shift) {
+        if (current_gain > min_gain_shift && current_gain - min_gain_shift > local_gain) {
           local_gain = current_gain - min_gain_shift;
           threshold_found = true;
           best_dir = 1;
@@ -1507,9 +1505,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
       hist_hess_buffer_ptr[0] += kEpsilon;
     }
     __syncthreads();
-    GlobalMemoryPrefixSum<double>(hist_grad_buffer_ptr, static_cast<size_t>(bin_end));
+    GlobalMemoryPrefixSum<double>(hist_grad_buffer_ptr, static_cast<size_t>(max_num_cat));
     __syncthreads();
-    GlobalMemoryPrefixSum<double>(hist_hess_buffer_ptr, static_cast<size_t>(bin_end));
+    GlobalMemoryPrefixSum<double>(hist_hess_buffer_ptr, static_cast<size_t>(max_num_cat));
     for (int bin = static_cast<int>(threadIdx_x); bin < used_bin && bin < max_num_cat; bin += static_cast<int>(blockDim.x)) {
       const double sum_left_gradient = hist_grad_buffer_ptr[bin];
       const double sum_left_hessian = hist_hess_buffer_ptr[bin];
@@ -1524,7 +1522,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
           sum_right_hessian, lambda_l1,
           l2, path_smooth, left_count, right_count, parent_output);
         // gain with split is worse than without split
-        if (current_gain > min_gain_shift) {
+        if (current_gain > min_gain_shift && current_gain - min_gain_shift > local_gain) {
           local_gain = current_gain - min_gain_shift;
           threshold_found = true;
           best_dir = -1;
@@ -1544,7 +1542,6 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
     if (threshold_found && threadIdx_x == best_thread_index) {
       cuda_best_split_info->is_valid = true;
       cuda_best_split_info->num_cat_threshold = best_threshold + 1;
-      cuda_best_split_info->cat_threshold = new uint32_t[best_threshold + 1];
       cuda_best_split_info->gain = local_gain;
       if (best_dir == 1) {
         for (int i = 0; i < best_threshold + 1; ++i) {

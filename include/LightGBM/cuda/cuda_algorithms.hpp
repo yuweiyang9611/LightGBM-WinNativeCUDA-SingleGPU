@@ -90,15 +90,16 @@ __device__ __forceinline__ T ShufflePrefixSumExclusive(T value, T* shared_mem_bu
   __syncthreads();
   const T warp_base = warpID == 0 ? 0 : shared_mem_buffer[warpID - 1];
   const T inclusive_result = warp_base + value;
+  __syncthreads();
   if (threadIdx.x % warpSize == warpSize - 1) {
-    shared_mem_buffer[warpLane] = inclusive_result;
+    shared_mem_buffer[warpID] = inclusive_result;
   }
   __syncthreads();
   T exclusive_result = __shfl_up_sync(mask, inclusive_result, 1);
   if (threadIdx.x == 0) {
     exclusive_result = 0;
   } else if (threadIdx.x % warpSize == 0) {
-    exclusive_result = shared_mem_buffer[warpLane - 1];
+    exclusive_result = shared_mem_buffer[warpID - 1];
   }
   return exclusive_result;
 }
