@@ -55,4 +55,6 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+The suite also covers quantized training, numerical/categorical depth limits, and configuration resets. See [the training fixes and memory-check instructions](../../docs/CUDA_TRAINING_LIMITS_FIX.md). Version synchronization tests require a POSIX shell and its utilities on PATH.
+
 The runner also checks NaN routing for training and validation, and verifies histogram counts against independently predicted leaf membership. See [the correctness fix and local validation record](../../docs/CUDA_KERNEL_CORRECTNESS_FIX.md). Optional `validate_frozen_input.py` tests a separately exported local fixture without installing packages or starting a full research workflow.

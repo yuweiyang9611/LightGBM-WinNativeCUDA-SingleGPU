@@ -65,6 +65,8 @@ class CUDABestSplitFinder {
     const CUDALeafSplitsStruct* larger_leaf_splits,
     const int smaller_leaf_index,
     const int larger_leaf_index,
+    const bool smaller_leaf_can_split,
+    const bool larger_leaf_can_split,
     const data_size_t num_data_in_smaller_leaf,
     const data_size_t num_data_in_larger_leaf,
     const double sum_hessians_in_smaller_leaf,

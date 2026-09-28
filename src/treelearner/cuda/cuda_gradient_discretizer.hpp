@@ -39,7 +39,9 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
     const score_t* input_gradients,
     const score_t* input_hessians) override;
 
-  const int8_t* discretized_gradients_and_hessians() const override { return discretized_gradients_and_hessians_.RawData(); }
+  const int8_t* discretized_gradients_and_hessians() const override {
+    return reinterpret_cast<const int8_t*>(discretized_gradients_and_hessians_.RawData());
+  }
 
   double grad_scale() const override {
     Log::Fatal("grad_scale() of CUDAGradientDiscretizer should not be called.");
@@ -58,7 +60,7 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
   void Init(const data_size_t num_data, const int num_leaves,
     const int num_features, const Dataset* train_data) override {
     GradientDiscretizer::Init(num_data, num_leaves, num_features, train_data);
-    discretized_gradients_and_hessians_.Resize(num_data * 2);
+    discretized_gradients_and_hessians_.Resize(static_cast<size_t>(num_data) * 2);
     num_reduce_blocks_ = (num_data + CUDA_GRADIENT_DISCRETIZER_BLOCK_SIZE - 1) / CUDA_GRADIENT_DISCRETIZER_BLOCK_SIZE;
     grad_min_block_buffer_.Resize(num_reduce_blocks_);
     grad_max_block_buffer_.Resize(num_reduce_blocks_);
@@ -104,7 +106,8 @@ class CUDAGradientDiscretizer: public GradientDiscretizer, public NCCLInfo {
   }
 
  protected:
-  mutable CUDAVector<int8_t> discretized_gradients_and_hessians_;
+  // CUDA stores one int16_t Hessian and one int16_t gradient per row.
+  mutable CUDAVector<int16_t> discretized_gradients_and_hessians_;
   mutable CUDAVector<score_t> grad_min_block_buffer_;
   mutable CUDAVector<score_t> grad_max_block_buffer_;
   mutable CUDAVector<score_t> hess_min_block_buffer_;

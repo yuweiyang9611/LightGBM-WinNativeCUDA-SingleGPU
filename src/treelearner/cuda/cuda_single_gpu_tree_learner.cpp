@@ -258,6 +258,10 @@ Tree* CUDASingleGPUTreeLearner::Train(const score_t* gradients,
 
     SelectFeatureByNode(tree.get());
 
+    const bool smaller_leaf_can_split = config_->max_depth <= 0 ||
+      tree->leaf_depth(smaller_leaf_index_) < config_->max_depth;
+    const bool larger_leaf_can_split = larger_leaf_index_ >= 0 && (config_->max_depth <= 0 ||
+      tree->leaf_depth(larger_leaf_index_) < config_->max_depth);
     if (config_->use_quantized_grad) {
       const uint8_t smaller_leaf_num_bits_bin = nccl_communicator_ == nullptr ?
         cuda_gradient_discretizer_->GetHistBitsInLeaf<false>(smaller_leaf_index_) :
@@ -269,6 +273,7 @@ Tree* CUDASingleGPUTreeLearner::Train(const score_t* gradients,
         cuda_smaller_leaf_splits_->GetCUDAStruct(),
         cuda_larger_leaf_splits_->GetCUDAStruct(),
         smaller_leaf_index_, larger_leaf_index_,
+        smaller_leaf_can_split, larger_leaf_can_split,
         global_num_data_in_smaller_leaf, global_num_data_in_larger_leaf,
         sum_hessians_in_smaller_leaf, sum_hessians_in_larger_leaf,
         cuda_gradient_discretizer_->grad_scale_ptr(),
@@ -280,6 +285,7 @@ Tree* CUDASingleGPUTreeLearner::Train(const score_t* gradients,
         cuda_smaller_leaf_splits_->GetCUDAStruct(),
         cuda_larger_leaf_splits_->GetCUDAStruct(),
         smaller_leaf_index_, larger_leaf_index_,
+        smaller_leaf_can_split, larger_leaf_can_split,
         global_num_data_in_smaller_leaf, global_num_data_in_larger_leaf,
         sum_hessians_in_smaller_leaf, sum_hessians_in_larger_leaf,
         nullptr, nullptr, 0, 0);

@@ -26,7 +26,7 @@ update_file \
 
 update_file \
     ./python-package/pyproject.toml \
-    "s|^version = \"[0-9a-z.]+\"$|version = \"${LGB_VERSION}\"|"
+    "s|^version = \"[0-9a-z.][0-9a-z.]*\"$|version = \"${LGB_VERSION}\"|"
 
 # R packages cannot have versions like 3.0.0rc1, but 3.0.0-1 is acceptable
 update_file \

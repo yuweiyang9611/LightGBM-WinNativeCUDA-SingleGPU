@@ -97,12 +97,11 @@ __global__ void DiscretizeGradientsKernel(
   const score_t* gradient_random_values,
   const score_t* hessian_random_values,
   const int grad_discretize_bins,
-  int8_t* output_gradients_and_hessians) {
+  int16_t* output_gradients_and_hessians_ptr) {
   const int start = random_values_use_start[iter];
   const data_size_t index = static_cast<data_size_t>(threadIdx.x + blockIdx.x * blockDim.x);
   const score_t grad_scale = *grad_scale_ptr;
   const score_t hess_scale = *hess_scale_ptr;
-  int16_t* output_gradients_and_hessians_ptr = reinterpret_cast<int16_t*>(output_gradients_and_hessians);
   if (index < num_data) {
     if (STOCHASTIC_ROUNDING) {
       const data_size_t index_offset = (index + start) % num_data;

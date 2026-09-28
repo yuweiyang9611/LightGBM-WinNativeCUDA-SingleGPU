@@ -307,6 +307,8 @@ void CUDABestSplitFinder::FindBestSplitsForLeaf(
   const CUDALeafSplitsStruct* larger_leaf_splits,
   const int smaller_leaf_index,
   const int larger_leaf_index,
+  const bool smaller_leaf_can_split,
+  const bool larger_leaf_can_split,
   const data_size_t num_data_in_smaller_leaf,
   const data_size_t num_data_in_larger_leaf,
   const double sum_hessians_in_smaller_leaf,
@@ -315,9 +317,9 @@ void CUDABestSplitFinder::FindBestSplitsForLeaf(
   const score_t* hess_scale,
   const uint8_t smaller_num_bits_in_histogram_bins,
   const uint8_t larger_num_bits_in_histogram_bins) {
-  const bool is_smaller_leaf_valid = (num_data_in_smaller_leaf > min_data_in_leaf_ &&
+  const bool is_smaller_leaf_valid = (smaller_leaf_can_split && num_data_in_smaller_leaf > min_data_in_leaf_ &&
     sum_hessians_in_smaller_leaf > min_sum_hessian_in_leaf_);
-  const bool is_larger_leaf_valid = (num_data_in_larger_leaf > min_data_in_leaf_ &&
+  const bool is_larger_leaf_valid = (larger_leaf_can_split && num_data_in_larger_leaf > min_data_in_leaf_ &&
     sum_hessians_in_larger_leaf > min_sum_hessian_in_leaf_ && larger_leaf_index >= 0);
   if (grad_scale != nullptr && hess_scale != nullptr) {
     LaunchFindBestSplitsDiscretizedForLeafKernel(smaller_leaf_splits, larger_leaf_splits,
