@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Repeated training Dataset replacement, quantization buffer resizing and rejection recovery are covered on CPU and CUDA. See [the Dataset replacement fixes](../../docs/TRAINING_DATASET_REPLACEMENT_FIX.md).
+
 Quantized continuation, changing leaf budgets and multi-block root statistics have dedicated regressions. See [the continuation and root-statistics fixes](../../docs/CUDA_QUANTIZED_CONTINUATION_FIX.md).
 
 Known optimal numerical and categorical stumps check split quality as well as routing and counts. See [the split-search optimality fixes](../../docs/CUDA_SPLIT_OPTIMALITY_FIX.md).

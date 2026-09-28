@@ -5079,6 +5079,56 @@ def test_quantized_training_resizes_leaf_state_on_reset(renew_leaf):
     np.testing.assert_allclose(model._Booster__inner_predict(data_idx=0), predictions, rtol=0, atol=1e-9)
 
 
+@pytest.mark.parametrize("quantized", [False, True])
+def test_repeated_training_dataset_replacement(quantized):
+    rng = np.random.default_rng(1729)
+
+    def generate(rows):
+        x = rng.normal(size=(rows, 4))
+        return x, 3 * x[:, 0] - x[:, 1] + 0.2 * x[:, 2] ** 2
+
+    params = {
+        "objective": "regression",
+        "device_type": "cpu",
+        "use_quantized_grad": quantized,
+        "num_threads": 4,
+        "num_leaves": 7,
+        "max_bin": 31,
+        "seed": 1729,
+        "verbosity": -1,
+    }
+    x, y = generate(256)
+    reference = lgb.Dataset(x, label=y, params=params)
+    model = lgb.train(params, reference, num_boost_round=2, keep_training_booster=True)
+    for index, rows in enumerate([4096, 128, 8192]):
+        x, y = generate(rows)
+        weights = rng.uniform(0.5, 2, rows) if index % 2 == 0 else None
+        before = model.predict(x)
+        # Do not retain previous replacement Datasets outside the Booster.
+        model.update(train_set=lgb.Dataset(x, label=y, weight=weights, reference=reference, params=params))
+        prediction = model.predict(x)
+        assert model.num_trees() == index + 3
+        assert np.average((prediction - y) ** 2, weights=weights) < np.average((before - y) ** 2, weights=weights)
+        np.testing.assert_allclose(model._Booster__inner_predict(data_idx=0), prediction, rtol=0, atol=1e-9)
+
+
+def test_rejected_training_dataset_replacement_preserves_booster():
+    rng = np.random.default_rng(1729)
+    x = rng.normal(size=(512, 4))
+    y = 3 * x[:, 0] - x[:, 1]
+    params = {"objective": "regression", "device_type": "cpu", "max_bin": 31, "num_threads": 4, "verbosity": -1}
+    original = lgb.Dataset(x, label=y, params=params)
+    model = lgb.train(params, original, num_boost_round=2, keep_training_booster=True)
+    expected = model.predict(x)
+    bad = lgb.Dataset(x, label=y, params=dict(params, max_bin=15))
+    with pytest.raises(lgb.basic.LightGBMError, match="different bin mappers"):
+        model.update(train_set=bad)
+    assert model.train_set is original
+    np.testing.assert_array_equal(model.predict(x), expected)
+    model.update()
+    assert model.num_trees() == 3
+
+
 def test_equal_predict_from_row_major_and_col_major_data():
     X_row, y = make_synthetic_regression()
     assert X_row.flags["C_CONTIGUOUS"]

@@ -414,6 +414,10 @@ void CUDASingleGPUTreeLearner::ResetTrainingData(
   bool is_constant_hessian) {
   SerialTreeLearner::ResetTrainingData(train_data, is_constant_hessian);
   CHECK_EQ(num_features_, train_data_->num_features());
+  if (cuda_gradient_discretizer_ != nullptr) {
+    cuda_gradient_discretizer_->ResetTrainingData(
+      num_data_, config_->num_leaves, num_features_, train_data_, is_constant_hessian);
+  }
   cuda_histogram_constructor_->ResetTrainingData(train_data, share_state_.get());
   cuda_data_partition_->ResetTrainingData(train_data,
     static_cast<int>(share_state_->feature_hist_offsets().back()),

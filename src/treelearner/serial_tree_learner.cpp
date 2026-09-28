@@ -129,6 +129,10 @@ void SerialTreeLearner::ResetTrainingDataInner(const Dataset* train_data,
   // initialize data partition
   data_partition_->ResetNumData(num_data_);
   if (reset_multi_val_bin) {
+    if (gradient_discretizer_ != nullptr) {
+      gradient_discretizer_->ResetTrainingData(
+        num_data_, config_->num_leaves, num_features_, train_data_, is_constant_hessian);
+    }
     col_sampler_.SetTrainingData(train_data_);
     GetShareStates(train_data_, is_constant_hessian, false);
   }

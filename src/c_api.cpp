@@ -250,6 +250,9 @@ class Booster {
     if (train_data != train_data_) {
       UNIQUE_LOCK(mutex_)
       CheckDatasetForCUDA(train_data);
+      if (!train_data_->CheckAlign(*train_data)) {
+        Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
+      }
       train_data_ = train_data;
       CreateObjectiveAndMetrics();
       // reset the boosting

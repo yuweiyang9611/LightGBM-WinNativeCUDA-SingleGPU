@@ -63,6 +63,19 @@ class GradientDiscretizer {
     leaf_grad_hess_stats_.resize(static_cast<size_t>(num_leaves_) * 2, 0.0);
   }
 
+  void ResetTrainingData(const data_size_t num_data, const int num_leaves,
+                         const int num_features, const Dataset* train_data,
+                         const bool is_constant_hessian) {
+    const auto random_engine = random_values_use_start_eng_;
+    const int iteration = iter_;
+    is_constant_hessian_ = is_constant_hessian;
+    Init(num_data, num_leaves, num_features, train_data);
+    // Refresh row-dependent storage and the sampling range without restarting
+    // the random sequence already used by earlier trees.
+    random_values_use_start_eng_ = random_engine;
+    iter_ = iteration;
+  }
+
   template <bool IS_GLOBAL>
   void SetNumBitsInHistogramBin(
     const int left_leaf_index, const int right_leaf_index,

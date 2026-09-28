@@ -4254,13 +4254,15 @@ class Booster:
                 raise TypeError(f"Training data should be Dataset instance, met {type(train_set).__name__}")
             if train_set._predictor is not self.__init_predictor:
                 raise LightGBMError("Replace training data failed, you should use same predictor for these data")
-            self.train_set = train_set
             _safe_call(
                 _LIB.LGBM_BoosterResetTrainingData(
                     self._handle,
-                    self.train_set.construct()._handle,
+                    train_set.construct()._handle,
                 )
             )
+            # Keep the previous Dataset alive until native reset has finished
+            # checking its bin mappers and rebuilding the training state.
+            self.train_set = train_set
             self.__inner_predict_buffer[0] = None
             self.train_set_version = self.train_set.version
         produced_empty_tree = ctypes.c_int(0)
