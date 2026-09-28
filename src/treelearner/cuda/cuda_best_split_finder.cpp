@@ -262,7 +262,12 @@ void CUDABestSplitFinder::ResetTrainingData(
   InitCUDAFeatureMetaInfo();
 }
 
-void CUDABestSplitFinder::ResetConfig(const Config* config, const hist_t* cuda_hist) {
+void CUDABestSplitFinder::ResetConfig(const Config* config, const hist_t* cuda_hist, const bool select_features_by_node) {
+  select_features_by_node_ = select_features_by_node;
+  if (select_features_by_node_) {
+    is_feature_used_by_smaller_node_.Resize(num_features_);
+    is_feature_used_by_larger_node_.Resize(num_features_);
+  }
   num_leaves_ = config->num_leaves;
   lambda_l1_ = config->lambda_l1;
   lambda_l2_ = config->lambda_l2;

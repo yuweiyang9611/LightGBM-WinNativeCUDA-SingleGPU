@@ -5010,6 +5010,49 @@ def test_bagging_by_query_in_lambdarank():
     assert ndcg_score_no_bagging_by_query >= ndcg_score - 0.1
 
 
+@pytest.mark.parametrize(
+    ("initial_constraints", "updated_constraints"),
+    [([], [[1], [2], [3]]), ([[1], [2], [3]], []), ([[0], [1]], [[2], [3]])],
+)
+def test_reset_parameter_updates_interaction_constraints(initial_constraints, updated_constraints):
+    rng = np.random.default_rng(1729)
+    x = rng.normal(size=(512, 4))
+    y = 10 * x[:, 0] + x[:, 1] - 2 * x[:, 2] + x[:, 3]
+    model = lgb.train(
+        {
+            "objective": "regression",
+            "num_threads": 4,
+            "num_leaves": 4,
+            "verbosity": -1,
+            "interaction_constraints": initial_constraints,
+        },
+        lgb.Dataset(x, label=y),
+        num_boost_round=2,
+        keep_training_booster=True,
+    )
+    model.reset_parameter({"interaction_constraints": updated_constraints})
+    model.update()
+    model.update()
+    new_trees = model.dump_model()["tree_info"][2:]
+    assert len(new_trees) == 2
+
+    def check_path(node, path_features):
+        if "split_index" not in node:
+            return
+        path_features = path_features | {node["split_feature"]}
+        assert any(path_features <= set(group) for group in updated_constraints)
+        check_path(node["left_child"], path_features)
+        check_path(node["right_child"], path_features)
+
+    for tree in new_trees:
+        root = tree["tree_structure"]
+        if updated_constraints:
+            check_path(root, set())
+        else:
+            # Removing the restriction must restore the dominant feature.
+            assert root["split_feature"] == 0
+
+
 def test_equal_predict_from_row_major_and_col_major_data():
     X_row, y = make_synthetic_regression()
     assert X_row.flags["C_CONTIGUOUS"]

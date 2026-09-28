@@ -289,6 +289,12 @@ void Config::Set(const std::unordered_map<std::string, std::string>& params) {
 
   GetAucMuWeights();
 
+  // An explicit empty value clears interaction constraints on parameter reset.
+  // GetString() otherwise ignores it and retains the previous configuration.
+  const auto interaction_constraints_it = params.find("interaction_constraints");
+  if (interaction_constraints_it != params.end() && interaction_constraints_it->second.empty()) {
+    interaction_constraints.clear();
+  }
   GetInteractionConstraints();
 
   // sort eval_at

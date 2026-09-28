@@ -111,9 +111,9 @@ int CUDATree::SplitCategorical(const int leaf_index,
   cuda_bitset_.PushBack(cuda_bitset, cuda_bitset_len);
   cuda_bitset_inner_.PushBack(cuda_bitset_inner, cuda_bitset_inner_len);
   leaf_depth_[num_leaves_] = ++leaf_depth_[leaf_index];
+  RecordBranchFeatures(leaf_index, num_leaves_, real_feature_index);
   ++num_leaves_;
   ++num_cat_;
-  RecordBranchFeatures(leaf_index, num_leaves_, real_feature_index);
   return num_leaves_ - 1;
 }
 
