@@ -144,6 +144,9 @@ void CUDAHistogramConstructor::SubtractHistogramForLeaf(
   global_timer.Start("CUDAHistogramConstructor::ConstructHistogramForLeaf::LaunchSubtractHistogramKernel");
   LaunchSubtractHistogramKernel(cuda_smaller_leaf_splits, cuda_larger_leaf_splits, use_quantized_grad,
                                 parent_num_bits_in_histogram_bins, smaller_num_bits_in_histogram_bins, larger_num_bits_in_histogram_bins);
+  // Split search uses independent streams and must see both the repaired
+  // smaller-leaf histogram and the completed larger-leaf subtraction.
+  CUDASUCCESS_OR_FATAL(cudaStreamSynchronize(cuda_stream_));
   global_timer.Stop("CUDAHistogramConstructor::ConstructHistogramForLeaf::LaunchSubtractHistogramKernel");
 }
 

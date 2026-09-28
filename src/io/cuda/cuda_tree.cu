@@ -377,7 +377,9 @@ __global__ void AddPredictionToScoreKernel(
         const uint32_t threshold_in_bin = cuda_threshold_in_bin[node];
         const int8_t missing_type = GetMissingTypeCUDA(decision_type);
         const bool default_left = ((decision_type & kDefaultLeftMask) > 0);
-        if ((missing_type == 1 && bin == default_bin) || (missing_type == 2 && bin == max_bin)) {
+        // bin and default_bin are feature-local; convert the column's max_bin as well.
+        const uint32_t local_max_bin = max_bin - min_bin + offset;
+        if ((missing_type == 1 && bin == default_bin) || (missing_type == 2 && bin == local_max_bin)) {
           if (default_left) {
             node = cuda_left_child[node];
           } else {
