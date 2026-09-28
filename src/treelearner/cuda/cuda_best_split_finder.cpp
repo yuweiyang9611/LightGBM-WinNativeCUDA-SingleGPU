@@ -94,14 +94,6 @@ void CUDABestSplitFinder::Init() {
   CUDASUCCESS_OR_FATAL(cudaStreamCreate(&cuda_streams_[0]));
   CUDASUCCESS_OR_FATAL(cudaStreamCreate(&cuda_streams_[1]));
   cuda_best_split_info_buffer_.Resize(8);
-  if (use_global_memory_) {
-    cuda_feature_hist_grad_buffer_.Resize(static_cast<size_t>(num_total_bin_));
-    cuda_feature_hist_hess_buffer_.Resize(static_cast<size_t>(num_total_bin_));
-    if (has_categorical_feature_) {
-      cuda_feature_hist_stat_buffer_.Resize(static_cast<size_t>(num_total_bin_));
-      cuda_feature_hist_index_buffer_.Resize(static_cast<size_t>(num_total_bin_));
-    }
-  }
 
   if (select_features_by_node_) {
     is_feature_used_by_smaller_node_.Resize(num_features_);
@@ -219,6 +211,22 @@ void CUDABestSplitFinder::InitCUDAFeatureMetaInfo() {
     }
   }
   CHECK_EQ(cur_task_index, static_cast<int>(split_find_tasks_.size()));
+
+  // Forward and reverse tasks for one feature run concurrently and need
+  // separate scratch space, including the omitted most-frequent bin.
+  size_t hist_buffer_size = 0;
+  for (auto& task : split_find_tasks_) {
+    task.hist_buffer_offset = hist_buffer_size;
+    hist_buffer_size += task.num_bin;
+  }
+  if (use_global_memory_) {
+    cuda_feature_hist_grad_buffer_.Resize(hist_buffer_size);
+    cuda_feature_hist_hess_buffer_.Resize(hist_buffer_size);
+    if (has_categorical_feature_) {
+      cuda_feature_hist_stat_buffer_.Resize(hist_buffer_size);
+      cuda_feature_hist_index_buffer_.Resize(hist_buffer_size);
+    }
+  }
 
   if (extra_trees_) {
     cuda_randoms_.Resize(num_tasks_ * 2);

@@ -90,6 +90,7 @@ Write-Host $CubinListing.Trim()
 Write-Host "Relocatable PTX fallback found in the built DLL."
 
 $env:LIGHTGBM_CUDA_DLL = $BuiltDll.FullName
+$env:LIGHTGBM_TEST_CMAKE = (Get-Command $CMakeExecutable).Source
 & $PythonExecutable -m pytest -ra $PSScriptRoot
 if ($LASTEXITCODE -ne 0) {
     throw "Windows native CUDA tests failed with exit code $LASTEXITCODE."

@@ -672,13 +672,8 @@ if(USE_CUDA)
       CUDA_RESOLVE_DEVICE_SYMBOLS ON
   )
 
-  # The Visual Studio CUDA targets only run nvcc's device-link step when the
-  # final target owns at least one CUDA source.  The CUDA implementation lives
-  # in lightgbm_objs, so add a no-op translation unit to make that step visible
-  # to MSBuild and resolve the registered fat binaries from the object library.
-  if(MSVC AND CMAKE_GENERATOR MATCHES "^Visual Studio")
-    target_sources(_lightgbm PRIVATE src/cuda/cuda_link.cu)
-  endif()
+  include(cmake/WindowsCudaDeviceLink.cmake)
+  configure_windows_cuda_device_link(_lightgbm)
   if(MSVC)
     # LightGBM uses MSVC's dynamic CRT (/MD). Selecting cudart.lib avoids the
     # conflicting LIBCMT directive in cudart_static.lib; CUDA 13.2 implements
@@ -692,9 +687,7 @@ if(USE_CUDA)
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
-    if(MSVC AND CMAKE_GENERATOR MATCHES "^Visual Studio")
-      target_sources(lightgbm PRIVATE src/cuda/cuda_link.cu)
-    endif()
+    configure_windows_cuda_device_link(lightgbm)
     if(MSVC)
       set_property(TARGET lightgbm PROPERTY CUDA_RUNTIME_LIBRARY Shared)
     endif()

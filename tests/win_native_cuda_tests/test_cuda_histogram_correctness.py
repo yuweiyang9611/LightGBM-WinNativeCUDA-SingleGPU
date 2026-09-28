@@ -20,7 +20,7 @@ pytest_plugins = ["test_cuda_runtime"]
 
 
 @pytest.mark.parametrize("seed", [29, 1729])
-@pytest.mark.parametrize("max_bin", [31, 255])
+@pytest.mark.parametrize("max_bin", [31, 255, 1023])
 @pytest.mark.parametrize("quantized", [False, True])
 def test_histogram_counts_match_independent_routing(
     staged_lightgbm: tuple[Path, Path], seed: int, max_bin: int, quantized: bool

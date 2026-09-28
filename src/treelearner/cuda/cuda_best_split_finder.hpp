@@ -35,6 +35,7 @@ struct SplitFindTask {
   bool is_categorical;
   bool is_one_hot;
   uint32_t hist_offset;
+  size_t hist_buffer_offset;
   uint8_t mfb_offset;
   uint32_t num_bin;
   uint32_t default_bin;

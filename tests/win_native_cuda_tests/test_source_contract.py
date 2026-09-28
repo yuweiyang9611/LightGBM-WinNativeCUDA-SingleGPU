@@ -123,11 +123,8 @@ def test_visual_studio_final_targets_trigger_cuda_device_link() -> None:
         r"CUDA_SEPARABLE_COMPILATION ON\s+CUDA_RESOLVE_DEVICE_SYMBOLS ON\s*\)",
         cmake,
     )
-    assert re.search(
-        r'if\(MSVC AND CMAKE_GENERATOR MATCHES "\^Visual Studio"\)\s+'
-        r"target_sources\(_lightgbm PRIVATE src/cuda/cuda_link\.cu\)\s+endif\(\)",
-        cmake,
-    )
+    assert "configure_windows_cuda_device_link(_lightgbm)" in cmake
+    assert "configure_windows_cuda_device_link(lightgbm)" in cmake
     assert "set_property(TARGET _lightgbm PROPERTY CUDA_RUNTIME_LIBRARY Shared)" in cmake
     assert "intentionally empty CUDA translation unit" in cuda_link_anchor
 
