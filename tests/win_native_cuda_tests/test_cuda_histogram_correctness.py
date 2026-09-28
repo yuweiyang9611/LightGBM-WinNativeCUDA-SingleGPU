@@ -21,10 +21,11 @@ pytest_plugins = ["test_cuda_runtime"]
 
 @pytest.mark.parametrize("seed", [29, 1729])
 @pytest.mark.parametrize("max_bin", [31, 255])
+@pytest.mark.parametrize("quantized", [False, True])
 def test_histogram_counts_match_independent_routing(
-    staged_lightgbm: tuple[Path, Path], seed: int, max_bin: int
+    staged_lightgbm: tuple[Path, Path], seed: int, max_bin: int, quantized: bool
 ) -> None:
-    """Exercise 64 trees in total, retaining normal asynchronous CUDA launches."""
+    """Check ordinary and quantized histograms with asynchronous CUDA launches."""
     stage_root, staged_dll = staged_lightgbm
     result = _run_with_staged_package(
         stage_root,
@@ -68,6 +69,7 @@ def test_histogram_counts_match_independent_routing(
                 "gpu_device_id": 0,
                 "num_gpu": 1,
                 "gpu_use_dp": True,
+                "use_quantized_grad": os.environ["HISTOGRAM_TEST_QUANTIZED"] == "1",
                 "max_bin": max_bin,
                 "num_leaves": 15,
                 "min_data_in_leaf": 20,
@@ -135,6 +137,7 @@ def test_histogram_counts_match_independent_routing(
         extra_env={
             "HISTOGRAM_TEST_SEED": str(seed),
             "HISTOGRAM_TEST_MAX_BIN": str(max_bin),
+            "HISTOGRAM_TEST_QUANTIZED": "1" if quantized else "0",
             "CUDA_LAUNCH_BLOCKING": "0",
         },
     )

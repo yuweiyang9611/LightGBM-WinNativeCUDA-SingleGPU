@@ -1851,7 +1851,6 @@ void CUDABestSplitFinder::LaunchFindBestSplitsForLeafKernelInner2(LaunchFindBest
   global_num_data_in_larger_leaf
 
 #define FindBestSplitsDiscretizedForLeafKernel_ARGS \
-    cuda_is_feature_used_bytree_.RawData(), \
     num_tasks_, \
     cuda_split_find_tasks_.RawData(), \
     cuda_randoms_.RawData(), \
@@ -1907,17 +1906,23 @@ void CUDABestSplitFinder::LaunchFindBestSplitsDiscretizedForLeafKernelInner1(Lau
 
 template <bool USE_RAND, bool USE_L1, bool USE_SMOOTHING>
 void CUDABestSplitFinder::LaunchFindBestSplitsDiscretizedForLeafKernelInner2(LaunchFindBestSplitsDiscretizedForLeafKernel_PARAMS) {
+  const int8_t* is_feature_used_by_smaller_node = cuda_is_feature_used_bytree_.RawData();
+  const int8_t* is_feature_used_by_larger_node = cuda_is_feature_used_bytree_.RawData();
+  if (select_features_by_node_) {
+    is_feature_used_by_smaller_node = is_feature_used_by_smaller_node_.RawData();
+    is_feature_used_by_larger_node = is_feature_used_by_larger_node_.RawData();
+  }
   if (!use_global_memory_) {
     if (is_smaller_leaf_valid) {
       FindBestSplitsDiscretizedForLeafKernel<USE_RAND, USE_L1, USE_SMOOTHING, false>
         <<<num_tasks_, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER, 0, cuda_streams_[0]>>>
-        (FindBestSplitsDiscretizedForLeafKernel_ARGS);
+        (is_feature_used_by_smaller_node, FindBestSplitsDiscretizedForLeafKernel_ARGS);
     }
     SynchronizeCUDADevice(__FILE__, __LINE__);
     if (is_larger_leaf_valid) {
       FindBestSplitsDiscretizedForLeafKernel<USE_RAND, USE_L1, USE_SMOOTHING, true>
         <<<num_tasks_, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER, 0, cuda_streams_[1]>>>
-        (FindBestSplitsDiscretizedForLeafKernel_ARGS);
+        (is_feature_used_by_larger_node, FindBestSplitsDiscretizedForLeafKernel_ARGS);
     }
   } else {
     // TODO(shiyu1994)
@@ -2227,6 +2232,8 @@ __global__ void AllocateCatVectorsKernel(
   int* cat_threshold_real_vec) {
   const size_t i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i < len) {
+    cuda_split_infos[i].left_sum_of_gradients_hessians = 0;
+    cuda_split_infos[i].right_sum_of_gradients_hessians = 0;
     if (has_categorical_feature) {
       cuda_split_infos[i].cat_threshold = cat_threshold_vec + i * max_num_categories_in_split;
       cuda_split_infos[i].cat_threshold_real = cat_threshold_real_vec + i * max_num_categories_in_split;

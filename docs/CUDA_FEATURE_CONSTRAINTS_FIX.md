@@ -19,7 +19,7 @@
 - Seven of ten feature-selection reset cases failed before repair; all ten now pass on CPU/CUDA, covering enabling, replacing and clearing constraints and toggling per-node feature sampling.
 - Three general Python regressions fail before repair and pass afterwards; they change constraints after two training iterations. The existing interaction-constraint test also passes.
 - All 56 Windows CUDA/source/version tests and all 38 C++ tests pass.
-- A targeted Compute Sanitizer run was started for categorical leaf capacity and CUDA mask enable/disable cases. Its result is pending; the functional test results above do not establish memory-check completion.
+- The categorical leaf-capacity and mask enable/disable cases subsequently passed Compute Sanitizer on the successor build, with zero errors. See [the follow-up validation](CUDA_DATASET_QUANTIZED_FIX.md), including the Windows process-tracking workaround.
 
 ## Local artifacts
 

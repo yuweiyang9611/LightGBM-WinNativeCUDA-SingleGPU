@@ -3751,6 +3751,15 @@ class Booster:
                     num_machines=params["num_machines"],
                 )
             # construct booster object
+            booster_device = _choose_param_value("device_type", params, "cpu")["device_type"]
+            storage_reference = train_set
+            while storage_reference.reference is not None:
+                storage_reference = storage_reference.reference
+            dataset_device = _choose_param_value("device_type", storage_reference.params or {}, "cpu")["device_type"]
+            if str(booster_device).lower() == "cuda" and str(dataset_device).lower() != "cuda":
+                # Prepare CUDA storage before constructing the handle, retaining
+                # the Dataset's explicit binning parameters.
+                train_set._update_params({**params, **train_set.get_params()})
             train_set.construct()
             # copy the parameters from train_set
             params.update(train_set.get_params())

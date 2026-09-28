@@ -187,6 +187,7 @@ class Booster {
     boosting_.reset(Boosting::CreateBoosting(config_.boosting, nullptr, config_.device_type, config_.num_gpu));
 
     train_data_ = train_data;
+    CheckDatasetForCUDA(train_data_);
     CreateObjectiveAndMetrics();
     // initialize the boosting
     if (config_.tree_learner == std::string("feature")) {
@@ -206,6 +207,17 @@ class Booster {
   }
 
   ~Booster() {
+  }
+
+  void CheckDatasetForCUDA(const Dataset* data) const {
+    #ifdef USE_CUDA
+    if (config_.device_type == "cuda" &&
+        (data->cuda_column_data() == nullptr || data->metadata().cuda_metadata() == nullptr)) {
+      Log::Fatal("CUDA training requires a Dataset constructed with device_type=cuda.");
+    }
+    #else
+    (void)data;
+    #endif
   }
 
   void CreateObjectiveAndMetrics() {
@@ -237,6 +249,7 @@ class Booster {
   void ResetTrainingData(const Dataset* train_data) {
     if (train_data != train_data_) {
       UNIQUE_LOCK(mutex_)
+      CheckDatasetForCUDA(train_data);
       train_data_ = train_data;
       CreateObjectiveAndMetrics();
       // reset the boosting
@@ -250,6 +263,9 @@ class Booster {
       const std::unordered_map<std::string, std::string>& new_param) {
     Config new_config;
     new_config.Set(new_param);
+    if (new_param.count("device_type") && new_config.device_type == "cuda" && old_config.device_type != "cuda") {
+      Log::Fatal("Cannot enable cuda on a constructed CPU Dataset handle. Construct a new Dataset with device_type=cuda, or retain raw data so it can be rebuilt.");
+    }
     if (new_param.count("data_random_seed") &&
         new_config.data_random_seed != old_config.data_random_seed) {
       Log::Fatal("Cannot change data_random_seed after constructed Dataset handle.");
@@ -400,6 +416,7 @@ class Booster {
 
   void AddValidData(const Dataset* valid_data) {
     UNIQUE_LOCK(mutex_)
+    CheckDatasetForCUDA(valid_data);
     valid_metrics_.emplace_back();
     for (auto metric_type : config_.metric) {
       auto metric = std::unique_ptr<Metric>(Metric::CreateMetric(metric_type, config_));

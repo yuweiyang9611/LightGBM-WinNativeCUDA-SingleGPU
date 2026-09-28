@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Direct CUDA Dataset initialization, native error recovery, quantized feature masks and quantized histogram counts are covered by the suite. See [the Dataset and quantization fixes](../../docs/CUDA_DATASET_QUANTIZED_FIX.md).
+
 Categorical interaction constraints and runtime feature-selection updates are covered as well. See [the constraint fixes and validation record](../../docs/CUDA_FEATURE_CONSTRAINTS_FIX.md).
 
 The suite also covers quantized training, numerical/categorical depth limits, and configuration resets. See [the training fixes and memory-check instructions](../../docs/CUDA_TRAINING_LIMITS_FIX.md). Version synchronization tests require a POSIX shell and its utilities on PATH.
