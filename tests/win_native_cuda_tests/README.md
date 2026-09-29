@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Failed objective updates and unknown objective names must preserve a usable Booster on CPU and CUDA. See [the reset recovery fixes](../../docs/OBJECTIVE_RESET_RECOVERY_FIX.md).
+
 Categorical minimum-group boundaries and extra-tree random thresholds are checked against independent losses and repeated seeds. See [the categorical settings fixes](../../docs/CUDA_CATEGORICAL_SETTINGS_FIX.md).
 
 Large-bin histogram workspace resizing is checked while training Datasets grow and shrink, including GPU memory checks. See [the workspace fix](../../docs/CUDA_HISTOGRAM_WORKSPACE_FIX.md).

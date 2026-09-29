@@ -390,7 +390,7 @@ class Booster {
   void ResetConfig(const char* parameters) {
     UNIQUE_LOCK(mutex_)
     auto param = Config::Str2Map(parameters);
-    Config new_config;
+    Config new_config = config_;
     new_config.Set(param);
     if (param.count("num_class") && new_config.num_class != config_.num_class) {
       Log::Fatal("Cannot change num_class during training");
@@ -403,26 +403,25 @@ class Booster {
     }
     CheckDatasetResetConfig(config_, param);
 
-    config_.Set(param);
-
-    OMP_SET_NUM_THREADS(config_.num_threads);
-
     if (param.count("objective")) {
-      // create objective function
-      objective_fun_.reset(ObjectiveFunction::CreateObjectiveFunction(config_.objective,
-                                                                      config_));
-      if (objective_fun_ == nullptr) {
+      // Keep the current objective and configuration alive until initialization
+      // and boosting compatibility checks have accepted the replacement.
+      auto new_objective = std::unique_ptr<ObjectiveFunction>(
+        ObjectiveFunction::CreateObjectiveFunction(new_config.objective, new_config));
+      if (new_objective == nullptr) {
         Log::Info("Using self-defined objective function");
       }
-      // initialize the objective function
-      if (objective_fun_ != nullptr) {
-        objective_fun_->Init(train_data_->metadata(), train_data_->num_data());
+      if (new_objective != nullptr) {
+        new_objective->Init(train_data_->metadata(), train_data_->num_data());
       }
       boosting_->ResetTrainingData(train_data_,
-                                   objective_fun_.get(), Common::ConstPtrInVectorWrapper<Metric>(train_metric_));
+                                   new_objective.get(), Common::ConstPtrInVectorWrapper<Metric>(train_metric_));
+      objective_fun_ = std::move(new_objective);
     }
 
-    boosting_->ResetConfig(&config_);
+    OMP_SET_NUM_THREADS(new_config.num_threads);
+    boosting_->ResetConfig(&new_config);
+    config_ = std::move(new_config);
   }
 
   void AddValidData(const Dataset* valid_data) {
