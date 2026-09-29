@@ -79,6 +79,8 @@ class CUDAHistogramConstructor {
  private:
   void InitFeatureMetaInfo(const Dataset* train_data, const std::vector<uint32_t>& feature_hist_offsets);
 
+  void ResizeHistogramWorkspace();
+
   void CalcConstructHistogramKernelDim(
     int* grid_dim_x,
     int* grid_dim_y,

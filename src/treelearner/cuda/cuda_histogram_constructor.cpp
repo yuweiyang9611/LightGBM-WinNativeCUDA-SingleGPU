@@ -87,7 +87,10 @@ void CUDAHistogramConstructor::Init(const Dataset* train_data, TrainingShareStat
   CUDASUCCESS_OR_FATAL(cudaStreamCreate(&cuda_stream_));
 
   cuda_need_fix_histogram_features_.InitFromHostVector(need_fix_histogram_features_);
+  ResizeHistogramWorkspace();
+}
 
+void CUDAHistogramConstructor::ResizeHistogramWorkspace() {
   if (cuda_row_data_->NumLargeBinPartition() > 0) {
     int grid_dim_x = 0, grid_dim_y = 0, block_dim_x = 0, block_dim_y = 0;
     CalcConstructHistogramKernelDim(&grid_dim_x, &grid_dim_y, &block_dim_x, &block_dim_y, num_data_);
@@ -103,8 +106,10 @@ void CUDAHistogramConstructor::Init(const Dataset* train_data, TrainingShareStat
       // use only half the size of histogram buffer in global memory when quantized training since each gradient and hessian takes only 2 bytes
       cuda_hist_buffer_.Resize(buffer_size);
     }
+  } else {
+    cuda_hist_buffer_.Clear();
   }
-  hist_buffer_for_num_bit_change_.Resize(num_total_bin_ * 2);
+  hist_buffer_for_num_bit_change_.Resize(static_cast<size_t>(num_total_bin_) * 2);
 }
 
 void CUDAHistogramConstructor::ConstructHistogramForLeaf(
@@ -169,6 +174,7 @@ void CUDAHistogramConstructor::ResetTrainingData(const Dataset* train_data, Trai
   cuda_row_data_->Init(train_data, share_states);
 
   cuda_need_fix_histogram_features_.InitFromHostVector(need_fix_histogram_features_);
+  ResizeHistogramWorkspace();
 }
 
 void CUDAHistogramConstructor::ResetConfig(const Config* config) {
