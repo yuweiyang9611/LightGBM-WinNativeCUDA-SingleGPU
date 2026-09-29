@@ -741,6 +741,7 @@ double GBDT::GetLowerBoundValue() const {
 void GBDT::ResetTrainingData(const Dataset* train_data, const ObjectiveFunction* objective_function,
                              const std::vector<const Metric*>& training_metrics,
                              bool reset_training_state) {
+  data_sample_strategy_->ValidateSampleConfig(config_.get(), train_data, objective_function);
   if (train_data != train_data_ && !train_data_->CheckAlign(*train_data)) {
     Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
   }
@@ -828,7 +829,7 @@ void GBDT::ValidateResetConfig(const Config* config, const ObjectiveFunction* ob
     tree_learner_->ValidateConfig(config);
   }
   if (data_sample_strategy_ != nullptr) {
-    data_sample_strategy_->ValidateSampleConfig(config);
+    data_sample_strategy_->ValidateSampleConfig(config, train_data_, objective_function);
   }
 }
 

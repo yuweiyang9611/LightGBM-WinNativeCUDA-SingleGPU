@@ -86,7 +86,8 @@ class GOSSStrategy : public SampleStrategy {
     }
   }
 
-  void ValidateSampleConfig(const Config* config) const override {
+  void ValidateSampleConfig(const Config* config, const Dataset* /*train_data*/,
+                            const ObjectiveFunction* /*objective_function*/) const override {
     CHECK_LE(config->top_rate + config->other_rate, 1.0f);
     CHECK(config->top_rate > 0.0f && config->other_rate > 0.0f);
     if (config->bagging_freq > 0 && config->bagging_fraction != 1.0f) {
@@ -95,7 +96,7 @@ class GOSSStrategy : public SampleStrategy {
   }
 
   void ResetSampleConfig(const Config* config, bool is_change_dataset) override {
-    ValidateSampleConfig(config);
+    ValidateSampleConfig(config, train_data_, objective_function_);
     // Cannot use bagging in GOSS
     config_ = config;
     need_resize_gradients_ = false;

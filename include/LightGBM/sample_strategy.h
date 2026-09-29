@@ -33,7 +33,8 @@ class SampleStrategy {
 
   virtual void ResetSampleConfig(const Config* config, bool is_change_dataset) = 0;
 
-  virtual void ValidateSampleConfig(const Config* /*config*/) const {}
+  virtual void ValidateSampleConfig(const Config* /*config*/, const Dataset* /*train_data*/,
+                                   const ObjectiveFunction* /*objective_function*/) const {}
 
   bool is_use_subset() const { return is_use_subset_; }
 

@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Active query bagging requires groups, and empty groups must not overflow query buffers. See [the query input fixes](../../docs/QUERY_BAGGING_INPUT_VALIDATION_FIX.md).
+
 Query bagging must update out-of-bag scores and refresh query/mode/thread state after resets. See [the query sampling fixes](../../docs/QUERY_BAGGING_RESET_FIX.md).
 
 Bagging resets must retain pending resampling, leave balanced mode correctly and honor new random seeds. See [the reset flag fixes](../../docs/BAGGING_RESET_FLAGS_FIX.md).

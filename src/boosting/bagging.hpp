@@ -149,7 +149,18 @@ class BaggingSampleStrategy : public SampleStrategy {
     }
   }
 
+  void ValidateSampleConfig(const Config* config, const Dataset* train_data,
+                            const ObjectiveFunction* objective_function) const override {
+    const bool balanced = (config->pos_bagging_fraction < 1.0 || config->neg_bagging_fraction < 1.0) &&
+                          objective_function != nullptr && objective_function->NumPositiveData() > 0;
+    if (config->bagging_by_query && config->bagging_freq > 0 &&
+        (config->bagging_fraction < 1.0 || balanced) && train_data->metadata().num_queries() == 0) {
+      Log::Fatal("Query bagging requires query information");
+    }
+  }
+
   void ResetSampleConfig(const Config* config, bool is_change_dataset) override {
+    ValidateSampleConfig(config, train_data_, objective_function_);
     num_threads_ = OMP_NUM_THREADS();
     num_queries_ = train_data_->metadata().num_queries();
     query_boundaries_ = train_data_->metadata().query_boundaries();
@@ -190,11 +201,12 @@ class BaggingSampleStrategy : public SampleStrategy {
         bagging_runner_.ReSize(num_queries_);
         sampled_query_boundaries_.resize(num_queries_ + 1, 0);
         sampled_query_boundaries_thread_buffer_.resize(num_threads_, 0);
-        bag_query_indices_.resize(num_data_);
+        bag_query_indices_.resize(num_queries_);
       }
       bagging_rands_.clear();
+      const data_size_t num_sampling_units = config_->bagging_by_query ? num_queries_ : num_data_;
       for (int i = 0;
-          i < (num_data_ + bagging_rand_block_ - 1) / bagging_rand_block_; ++i) {
+          i < (num_sampling_units + bagging_rand_block_ - 1) / bagging_rand_block_; ++i) {
         bagging_rands_.emplace_back(config_->bagging_seed + i);
       }
 
