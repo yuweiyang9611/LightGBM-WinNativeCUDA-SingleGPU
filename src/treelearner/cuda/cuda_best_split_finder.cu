@@ -2255,6 +2255,9 @@ __global__ void AllocateCatVectorsKernel(
 
 void CUDABestSplitFinder::LaunchAllocateCatVectorsKernel(
   CUDASplitInfo* cuda_split_infos, uint32_t* cat_threshold_vec, int* cat_threshold_real_vec, size_t len) {
+  if (len == 0) {
+    return;
+  }
   const int num_blocks = (static_cast<int>(len) + NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER - 1) / NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER;
   AllocateCatVectorsKernel<<<num_blocks, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER>>>(
     cuda_split_infos, len, max_num_categories_in_split_, has_categorical_feature_, cat_threshold_vec, cat_threshold_real_vec);
@@ -2271,6 +2274,9 @@ __global__ void InitCUDARandomKernel(
 }
 
 void CUDABestSplitFinder::LaunchInitCUDARandomKernel() {
+  if (cuda_randoms_.Size() == 0) {
+    return;
+  }
   const int num_blocks = (static_cast<int>(cuda_randoms_.Size()) +
     NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER - 1) / NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER;
   InitCUDARandomKernel<<<num_blocks, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER>>>(extra_seed_,

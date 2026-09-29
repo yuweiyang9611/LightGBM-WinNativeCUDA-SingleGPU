@@ -198,6 +198,9 @@ __global__ void GlobalInclusiveArgPrefixSumKernel(
   const INDEX_T* sorted_indices, const VAL_T* in_values, REDUCE_T* out_values, REDUCE_T* block_buffer, data_size_t num_data) {
   __shared__ REDUCE_T shared_buffer[WARPSIZE];
   const data_size_t data_index = static_cast<data_size_t>(threadIdx.x + blockIdx.x * blockDim.x);
+  if (data_index == 0) {
+    block_buffer[0] = 0;
+  }
   REDUCE_T value = static_cast<REDUCE_T>(data_index < num_data ? in_values[sorted_indices[data_index]] : 0);
   __syncthreads();
   value = ShufflePrefixSum<REDUCE_T>(value, shared_buffer);
@@ -219,9 +222,10 @@ __global__ void GlobalInclusivePrefixSumReduceBlockKernel(T* block_buffer, data_
   for (data_size_t block_index = thread_start_block_index; block_index < thread_end_block_index; ++block_index) {
     thread_sum += block_buffer[block_index];
   }
-  ShufflePrefixSumExclusive<T>(thread_sum, shared_buffer);
+  T running_sum = ShufflePrefixSumExclusive<T>(thread_sum, shared_buffer);
   for (data_size_t block_index = thread_start_block_index; block_index < thread_end_block_index; ++block_index) {
-    block_buffer[block_index] += thread_sum;
+    running_sum += block_buffer[block_index];
+    block_buffer[block_index] = running_sum;
   }
 }
 
@@ -439,6 +443,11 @@ void BitonicArgSortGlobal<double, data_size_t, true>(const double* values, data_
 template <>
 void BitonicArgSortGlobal<label_t, data_size_t, false>(const label_t* values, data_size_t* indices, const size_t len) {
   BitonicArgSortGlobalHelper<label_t, data_size_t, false>(values, indices, len);
+}
+
+template <>
+void BitonicArgSortGlobal<label_t, data_size_t, true>(const label_t* values, data_size_t* indices, const size_t len) {
+  BitonicArgSortGlobalHelper<label_t, data_size_t, true>(values, indices, len);
 }
 
 template <>

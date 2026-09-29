@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Percentile initialization and L1/quantile leaf updates are compared with independent calculations, including weighted, small-data and million-row cases. See [the percentile fixes](../../docs/CUDA_PERCENTILE_FIX.md).
+
 Repeated training Dataset replacement, quantization buffer resizing and rejection recovery are covered on CPU and CUDA. See [the Dataset replacement fixes](../../docs/TRAINING_DATASET_REPLACEMENT_FIX.md).
 
 Quantized continuation, changing leaf budgets and multi-block root statistics have dedicated regressions. See [the continuation and root-statistics fixes](../../docs/CUDA_QUANTIZED_CONTINUATION_FIX.md).

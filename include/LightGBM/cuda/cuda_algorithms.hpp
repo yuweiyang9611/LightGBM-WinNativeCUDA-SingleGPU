@@ -501,54 +501,73 @@ __device__ void ShuffleSortedPrefixSumDevice(const VAL_T* in_values,
   }
   __syncthreads();
   thread_sum = ShufflePrefixSumExclusive<REDUCE_VAL_T>(thread_sum, shared_buffer);
-  const REDUCE_VAL_T thread_base = shared_buffer[threadIdx.x];
   for (INDEX_T index = start; index < end; ++index) {
-    out_values[index] = thread_base + static_cast<REDUCE_VAL_T>(in_values[sorted_indices[index]]);
+    thread_sum += static_cast<REDUCE_VAL_T>(in_values[sorted_indices[index]]);
+    out_values[index] = thread_sum;
   }
   __syncthreads();
 }
 
+// Match the CPU weighted-percentile convention: ascending cumulative weights,
+// with interpolation only when the selected weight interval is at least one.
+template <typename VAL_T, typename INDEX_T, typename WEIGHT_REDUCE_T>
+__device__ VAL_T WeightedPercentileFromPrefix(const VAL_T* values,
+                                            const INDEX_T* sorted_indices,
+                                            const WEIGHT_REDUCE_T* prefix,
+                                            const double alpha, const INDEX_T len) {
+  const WEIGHT_REDUCE_T threshold = prefix[len - 1] * alpha;
+  __shared__ INDEX_T pos;
+  if (threadIdx.x == 0) {
+    pos = len;
+  }
+  __syncthreads();
+  for (INDEX_T index = static_cast<INDEX_T>(threadIdx.x); index < len; index += static_cast<INDEX_T>(blockDim.x)) {
+    if (prefix[index] > threshold && (index == 0 || prefix[index - 1] <= threshold)) {
+      pos = index;
+    }
+  }
+  __syncthreads();
+  const INDEX_T selected = min(pos, len - 1);
+  if (selected == 0 || selected == len - 1) {
+    return values[sorted_indices[selected]];
+  }
+  const VAL_T v1 = values[sorted_indices[selected - 1]];
+  const VAL_T v2 = values[sorted_indices[selected]];
+  const WEIGHT_REDUCE_T interval = prefix[selected] - prefix[selected - 1];
+  if (interval < 1.0) {
+    return v1;
+  }
+  return static_cast<VAL_T>(v1 + (v2 - v1) * (threshold - prefix[selected - 1]) / interval);
+}
+
+template <typename VAL_T, typename INDEX_T, bool ASCENDING>
+__device__ VAL_T PercentileFromSortedIndices(const VAL_T* values, const INDEX_T* indices,
+                                           const double alpha, const INDEX_T len) {
+  const double position = (ASCENDING ? alpha : (1.0 - alpha)) * static_cast<double>(len - 1);
+  const INDEX_T lower = static_cast<INDEX_T>(position);
+  const INDEX_T upper = min(lower + 1, len - 1);
+  const VAL_T v1 = values[indices[lower]];
+  const VAL_T v2 = values[indices[upper]];
+  return static_cast<VAL_T>(v1 + (v2 - v1) * (position - static_cast<double>(lower)));
+}
+
 template <typename VAL_T, typename INDEX_T, typename WEIGHT_T, typename WEIGHT_REDUCE_T, bool ASCENDING, bool USE_WEIGHT>
 __global__ void PercentileGlobalKernel(const VAL_T* values,
-                                       const WEIGHT_T* weights,
+                                       const WEIGHT_T* /*weights*/,
                                        const INDEX_T* sorted_indices,
                                        const WEIGHT_REDUCE_T* weights_prefix_sum,
                                        const double alpha,
                                        const INDEX_T len,
                                        VAL_T* out_value) {
   if (!USE_WEIGHT) {
-    const double float_pos = (1.0f - alpha) * len;
-    const INDEX_T pos = static_cast<INDEX_T>(float_pos);
-    if (pos < 1) {
-      *out_value = values[sorted_indices[0]];
-    } else if (pos >= len) {
-      *out_value = values[sorted_indices[len - 1]];
-    } else {
-      const double bias = float_pos - static_cast<double>(pos);
-      const VAL_T v1 = values[sorted_indices[pos - 1]];
-      const VAL_T v2 = values[sorted_indices[pos]];
-      *out_value = static_cast<VAL_T>(v1 - (v1 - v2) * bias);
+    if (threadIdx.x == 0) {
+      *out_value = PercentileFromSortedIndices<VAL_T, INDEX_T, ASCENDING>(values, sorted_indices, alpha, len);
     }
   } else {
-    const WEIGHT_REDUCE_T threshold = weights_prefix_sum[len - 1] * (1.0f - alpha);
-    __shared__ INDEX_T pos;
+    const VAL_T value = WeightedPercentileFromPrefix(values, sorted_indices, weights_prefix_sum, alpha, len);
     if (threadIdx.x == 0) {
-      pos = len;
+      *out_value = value;
     }
-    __syncthreads();
-    for (INDEX_T index = static_cast<INDEX_T>(threadIdx.x); index < len; index += static_cast<INDEX_T>(blockDim.x)) {
-      if (weights_prefix_sum[index] > threshold && (index == 0 || weights_prefix_sum[index - 1] <= threshold)) {
-        pos = index;
-      }
-    }
-    __syncthreads();
-    pos = min(pos, len - 1);
-    if (pos == 0 || pos == len - 1) {
-      *out_value = values[pos];
-    }
-    const VAL_T v1 = values[sorted_indices[pos - 1]];
-    const VAL_T v2 = values[sorted_indices[pos]];
-    *out_value = static_cast<VAL_T>(v1 - (v1 - v2) * (threshold - weights_prefix_sum[pos - 1]) / (weights_prefix_sum[pos] - weights_prefix_sum[pos - 1]));
   }
 }
 
@@ -563,8 +582,9 @@ void PercentileGlobal(const VAL_T* values,
                       VAL_T* cuda_out_value) {
   if (len <= 1) {
     CopyFromCUDADeviceToCUDADevice<VAL_T>(cuda_out_value, values, 1, __FILE__, __LINE__);
+    return;
   }
-  BitonicArgSortGlobal<VAL_T, INDEX_T, ASCENDING>(values, indices, len);
+  BitonicArgSortGlobal<VAL_T, INDEX_T, USE_WEIGHT || ASCENDING>(values, indices, len);
   SynchronizeCUDADevice(__FILE__, __LINE__);
   if (USE_WEIGHT) {
     GlobalInclusiveArgPrefixSum<WEIGHT_T, WEIGHT_REDUCE_T, INDEX_T>(indices, weights, weights_prefix_sum, weights_prefix_sum_buffer, static_cast<size_t>(len));
@@ -586,40 +606,11 @@ __device__ VAL_T PercentileDevice(const VAL_T* values,
   }
   if (!USE_WEIGHT) {
     BitonicArgSortDevice<VAL_T, INDEX_T, ASCENDING, BITONIC_SORT_NUM_ELEMENTS / 2, 10>(values, indices, len);
-    const double float_pos = (1.0f - alpha) * len;
-    const INDEX_T pos = static_cast<INDEX_T>(float_pos);
-    if (pos < 1) {
-      return values[indices[0]];
-    } else if (pos >= len) {
-      return values[indices[len - 1]];
-    } else {
-      const double bias = float_pos - pos;
-      const VAL_T v1 = values[indices[pos - 1]];
-      const VAL_T v2 = values[indices[pos]];
-      return static_cast<VAL_T>(v1 - (v1 - v2) * bias);
-    }
+    return PercentileFromSortedIndices<VAL_T, INDEX_T, ASCENDING>(values, indices, alpha, len);
   } else {
-    BitonicArgSortDevice<VAL_T, INDEX_T, ASCENDING, BITONIC_SORT_NUM_ELEMENTS / 4, 9>(values, indices, len);
+    BitonicArgSortDevice<VAL_T, INDEX_T, true, BITONIC_SORT_NUM_ELEMENTS / 4, 9>(values, indices, len);
     ShuffleSortedPrefixSumDevice<WEIGHT_T, REDUCE_WEIGHT_T, INDEX_T>(weights, indices, weights_prefix_sum, len);
-    const REDUCE_WEIGHT_T threshold = weights_prefix_sum[len - 1] * (1.0f - alpha);
-    __shared__ INDEX_T pos;
-    if (threadIdx.x == 0) {
-      pos = len;
-    }
-    __syncthreads();
-    for (INDEX_T index = static_cast<INDEX_T>(threadIdx.x); index < len; index += static_cast<INDEX_T>(blockDim.x)) {
-      if (weights_prefix_sum[index] > threshold && (index == 0 || weights_prefix_sum[index - 1] <= threshold)) {
-        pos = index;
-      }
-    }
-    __syncthreads();
-    pos = min(pos, len - 1);
-    if (pos == 0 || pos == len - 1) {
-      return values[pos];
-    }
-    const VAL_T v1 = values[indices[pos - 1]];
-    const VAL_T v2 = values[indices[pos]];
-    return static_cast<VAL_T>(v1 - (v1 - v2) * (threshold - weights_prefix_sum[pos - 1]) / (weights_prefix_sum[pos] - weights_prefix_sum[pos - 1]));
+    return WeightedPercentileFromPrefix(values, indices, weights_prefix_sum, alpha, len);
   }
 }
 
