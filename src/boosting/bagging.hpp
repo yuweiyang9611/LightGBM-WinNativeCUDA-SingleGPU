@@ -156,16 +156,16 @@ class BaggingSampleStrategy : public SampleStrategy {
     }
     bool balance_bagging_cond = (config->pos_bagging_fraction < 1.0 || config->neg_bagging_fraction < 1.0) && (num_pos_data > 0);
     if ((config->bagging_fraction < 1.0 || balance_bagging_cond) && config->bagging_freq > 0) {
-      need_re_bagging_ = false;
       if (!is_change_dataset &&
         config_ != nullptr && config_->bagging_fraction == config->bagging_fraction && config_->bagging_freq == config->bagging_freq
+        && config_->bagging_seed == config->bagging_seed
         && config_->pos_bagging_fraction == config->pos_bagging_fraction && config_->neg_bagging_fraction == config->neg_bagging_fraction) {
         config_ = config;
         return;
       }
       config_ = config;
+      balanced_bagging_ = balance_bagging_cond;
       if (balance_bagging_cond) {
-        balanced_bagging_ = true;
         bag_data_cnt_ = static_cast<data_size_t>(num_pos_data * config_->pos_bagging_fraction)
                         + static_cast<data_size_t>((num_data_ - num_pos_data) * config_->neg_bagging_fraction);
       } else {

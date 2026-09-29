@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Bagging resets must retain pending resampling, leave balanced mode correctly and honor new random seeds. See [the reset flag fixes](../../docs/BAGGING_RESET_FLAGS_FIX.md).
+
 Consecutive GOSS resets and ordinary bagging exit/re-enable must preserve valid Dataset and index ownership. See [the sampling lifetime fixes](../../docs/SAMPLING_RESET_LIFETIME_FIX.md).
 
 GOSS must restore full-data warmup and safely switch CPU subset modes after parameter changes. See [the sampling transition fixes](../../docs/GOSS_STATE_TRANSITION_FIX.md).
