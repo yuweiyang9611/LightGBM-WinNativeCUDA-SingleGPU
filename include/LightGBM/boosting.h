@@ -61,6 +61,9 @@ class LIGHTGBM_EXPORT Boosting {
 
   virtual void ResetConfig(const Config* config) = 0;
 
+  // Check a prospective objective and configuration without changing training state.
+  virtual void ValidateResetConfig(const Config* config, const ObjectiveFunction* objective_function) const = 0;
+
 
 
   /*!

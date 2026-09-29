@@ -435,12 +435,16 @@ void CUDASingleGPUTreeLearner::ResetTrainingData(
   }
 }
 
-void CUDASingleGPUTreeLearner::ResetConfig(const Config* config) {
-  const int old_num_leaves = config_->num_leaves;
-  SerialTreeLearner::ResetConfig(config);
-  if (config_->gpu_device_id >= 0 && config_->gpu_device_id != gpu_device_id_) {
+void CUDASingleGPUTreeLearner::ValidateConfig(const Config* config) const {
+  if (config->gpu_device_id >= 0 && config->gpu_device_id != gpu_device_id_) {
     Log::Fatal("Changing gpu device ID by resetting configuration parameter is not allowed for CUDA tree learner.");
   }
+}
+
+void CUDASingleGPUTreeLearner::ResetConfig(const Config* config) {
+  ValidateConfig(config);
+  const int old_num_leaves = config_->num_leaves;
+  SerialTreeLearner::ResetConfig(config);
   num_threads_ = OMP_NUM_THREADS();
   if (config_->num_leaves != old_num_leaves) {
     leaf_best_split_feature_.resize(config_->num_leaves, -1);

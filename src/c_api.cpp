@@ -403,17 +403,21 @@ class Booster {
     }
     CheckDatasetResetConfig(config_, param);
 
+    std::unique_ptr<ObjectiveFunction> new_objective;
     if (param.count("objective")) {
       // Keep the current objective and configuration alive until initialization
       // and boosting compatibility checks have accepted the replacement.
-      auto new_objective = std::unique_ptr<ObjectiveFunction>(
-        ObjectiveFunction::CreateObjectiveFunction(new_config.objective, new_config));
+      new_objective.reset(ObjectiveFunction::CreateObjectiveFunction(new_config.objective, new_config));
       if (new_objective == nullptr) {
         Log::Info("Using self-defined objective function");
       }
       if (new_objective != nullptr) {
         new_objective->Init(train_data_->metadata(), train_data_->num_data());
       }
+    }
+    boosting_->ValidateResetConfig(&new_config,
+      param.count("objective") ? new_objective.get() : objective_fun_.get());
+    if (param.count("objective")) {
       boosting_->ResetTrainingData(train_data_,
                                    new_objective.get(), Common::ConstPtrInVectorWrapper<Metric>(train_metric_));
       objective_fun_ = std::move(new_objective);

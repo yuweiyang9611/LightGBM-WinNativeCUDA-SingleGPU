@@ -131,6 +131,8 @@ class GBDT : public GBDTBase {
   */
   void ResetConfig(const Config* gbdt_config) override;
 
+  void ValidateResetConfig(const Config* config, const ObjectiveFunction* objective_function) const override;
+
   /*!
   * \brief Adding a validation dataset
   * \param valid_data Validation dataset

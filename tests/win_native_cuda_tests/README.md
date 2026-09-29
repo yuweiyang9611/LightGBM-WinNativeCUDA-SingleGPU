@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Late configuration rejection must preserve training state, and CUDA GOSS must train past warmup. See [the validation and GOSS fixes](../../docs/LATE_CONFIG_VALIDATION_FIX.md).
+
 Failed objective updates and unknown objective names must preserve a usable Booster on CPU and CUDA. See [the reset recovery fixes](../../docs/OBJECTIVE_RESET_RECOVERY_FIX.md).
 
 Categorical minimum-group boundaries and extra-tree random thresholds are checked against independent losses and repeated seeds. See [the categorical settings fixes](../../docs/CUDA_CATEGORICAL_SETTINGS_FIX.md).

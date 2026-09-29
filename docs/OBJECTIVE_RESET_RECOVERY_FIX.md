@@ -22,9 +22,8 @@ factory. This affected initial construction as well as runtime resets.
 - Raise `Unknown objective type name` explicitly from the CUDA factory.
 
 This repairs failures during objective construction, initialization and the
-initial compatibility checks. It does not claim that all later tree-learner or
-sampling configuration failures are transactional; those paths remain separate
-audit targets.
+initial compatibility checks. Follow-up validation of tree-learner and sampling
+configuration is documented in [the late validation fixes](LATE_CONFIG_VALIDATION_FIX.md).
 
 ## Validation
 

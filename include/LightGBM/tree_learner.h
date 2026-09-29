@@ -51,6 +51,8 @@ class TreeLearner {
   */
   virtual void ResetConfig(const Config* config) = 0;
 
+  virtual void ValidateConfig(const Config* /*config*/) const {}
+
   /*!
   * \brief Reset boosting_on_gpu_
   * \param boosting_on_gpu flag for boosting on GPU

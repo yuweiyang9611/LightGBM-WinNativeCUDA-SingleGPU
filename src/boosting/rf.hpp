@@ -59,13 +59,17 @@ class RF : public GBDT {
     }
   }
 
-  void ResetConfig(const Config* config) override {
+  void ValidateResetConfig(const Config* config, const ObjectiveFunction* objective_function) const override {
     if (config->data_sample_strategy == std::string("bagging")) {
       CHECK((config->bagging_freq > 0 && config->bagging_fraction < 1.0f && config->bagging_fraction > 0.0f) ||
             (config->feature_fraction < 1.0f && config->feature_fraction > 0.0f));
     } else {
       CHECK_EQ(config->data_sample_strategy, std::string("goss"));
     }
+    GBDT::ValidateResetConfig(config, objective_function);
+  }
+
+  void ResetConfig(const Config* config) override {
     GBDT::ResetConfig(config);
     // not shrinkage rate for the RF
     shrinkage_rate_ = 1.0f;

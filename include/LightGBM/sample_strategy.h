@@ -33,6 +33,8 @@ class SampleStrategy {
 
   virtual void ResetSampleConfig(const Config* config, bool is_change_dataset) = 0;
 
+  virtual void ValidateSampleConfig(const Config* /*config*/) const {}
+
   bool is_use_subset() const { return is_use_subset_; }
 
   data_size_t bag_data_cnt() const { return bag_data_cnt_; }

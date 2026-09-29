@@ -813,17 +813,28 @@ void GBDT::ResetTrainingData(const Dataset* train_data, const ObjectiveFunction*
   }
 }
 
-void GBDT::ResetConfig(const Config* config) {
-  auto new_config = std::unique_ptr<Config>(new Config(*config));
+void GBDT::ValidateResetConfig(const Config* config, const ObjectiveFunction* objective_function) const {
+  const size_t num_features = static_cast<size_t>(max_feature_idx_ + 1);
   if (!config->monotone_constraints.empty()) {
-    CHECK_EQ(static_cast<size_t>(train_data_->num_total_features()), config->monotone_constraints.size());
+    CHECK_EQ(num_features, config->monotone_constraints.size());
   }
   if (!config->feature_contri.empty()) {
-    CHECK_EQ(static_cast<size_t>(train_data_->num_total_features()), config->feature_contri.size());
+    CHECK_EQ(num_features, config->feature_contri.size());
   }
-  if (objective_function_ != nullptr && objective_function_->IsRenewTreeOutput() && !config->monotone_constraints.empty()) {
-    Log::Fatal("Cannot use ``monotone_constraints`` in %s objective, please disable it.", objective_function_->GetName());
+  if (objective_function != nullptr && objective_function->IsRenewTreeOutput() && !config->monotone_constraints.empty()) {
+    Log::Fatal("Cannot use ``monotone_constraints`` in %s objective, please disable it.", objective_function->GetName());
   }
+  if (tree_learner_ != nullptr) {
+    tree_learner_->ValidateConfig(config);
+  }
+  if (data_sample_strategy_ != nullptr) {
+    data_sample_strategy_->ValidateSampleConfig(config);
+  }
+}
+
+void GBDT::ResetConfig(const Config* config) {
+  ValidateResetConfig(config, objective_function_);
+  auto new_config = std::unique_ptr<Config>(new Config(*config));
   early_stopping_round_ = new_config->early_stopping_round;
   shrinkage_rate_ = new_config->learning_rate;
   if (tree_learner_ != nullptr) {
