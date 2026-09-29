@@ -278,9 +278,12 @@ void CUDADataPartition::CalcBlockDim(const data_size_t num_data_in_leaf) {
 }
 
 void CUDADataPartition::SetUsedDataIndices(const data_size_t* used_indices, const data_size_t num_used_indices) {
-  use_bagging_ = true;
-  num_used_indices_ = num_used_indices;
+  use_bagging_ = used_indices != nullptr;
+  num_used_indices_ = use_bagging_ ? num_used_indices : 0;
   used_indices_ = used_indices;
+  if (!use_bagging_) {
+    return;
+  }
   CopyFromCUDADeviceToCUDADevice<data_size_t>(cuda_data_indices_.RawData(), used_indices, static_cast<size_t>(num_used_indices), __FILE__, __LINE__);
   LaunchFillDataIndexToLeafIndex();
 }

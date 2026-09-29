@@ -18,7 +18,8 @@ namespace LightGBM {
 
 class GOSSStrategy : public SampleStrategy {
  public:
-  GOSSStrategy(const Config* config, const Dataset* train_data, int num_tree_per_iteration) {
+  GOSSStrategy(const Config* config, const Dataset* train_data, int num_tree_per_iteration)
+      : learner_uses_subset_(false) {
     config_ = config;
     train_data_ = train_data;
     num_tree_per_iteration_ = num_tree_per_iteration;
@@ -30,8 +31,16 @@ class GOSSStrategy : public SampleStrategy {
 
   void Bagging(int iter, TreeLearner* tree_learner, score_t* gradients, score_t* hessians) override {
     bag_data_cnt_ = num_data_;
+    const bool is_warmup = iter < static_cast<int>(1.0f / config_->learning_rate);
+    if (learner_uses_subset_ && (is_warmup || !is_use_subset_)) {
+      // A config reset can replace tmp_subset_ while the learner still refers
+      // to it. Restore the full Dataset before using uncompressed gradients.
+      tree_learner->ResetTrainingData(train_data_, false);
+      learner_uses_subset_ = false;
+    }
     // not subsample for first iterations
-    if (iter < static_cast<int>(1.0f / config_->learning_rate)) {
+    if (is_warmup) {
+      tree_learner->SetBaggingData(nullptr, nullptr, num_data_);
       return;
     }
     auto left_cnt = bagging_runner_.Run<true>(
@@ -73,6 +82,7 @@ class GOSSStrategy : public SampleStrategy {
       #ifdef USE_CUDA
       }
       #endif  // USE_CUDA
+      learner_uses_subset_ = true;
     }
   }
 
@@ -127,6 +137,8 @@ class GOSSStrategy : public SampleStrategy {
   }
 
  private:
+  bool learner_uses_subset_;
+
   data_size_t Helper(data_size_t start, data_size_t cnt, data_size_t* buffer, score_t* gradients, score_t* hessians) {
     if (cnt <= 0) {
       return 0;

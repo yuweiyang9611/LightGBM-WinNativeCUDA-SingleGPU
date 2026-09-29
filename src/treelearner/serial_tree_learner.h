@@ -91,6 +91,9 @@ class SerialTreeLearner: public TreeLearner {
       share_state_->SetUseSubrow(false);
     } else {
       ResetTrainingDataInner(subset, share_state_->is_constant_hessian, false);
+      // Gradients and rows are compacted in subset mode; original row indices
+      // from a preceding indexed-bagging iteration must not be reused.
+      data_partition_->SetUsedDataIndices(nullptr, 0);
       share_state_->SetUseSubrow(true);
       share_state_->SetSubrowCopied(false);
       share_state_->bagging_use_indices = used_indices;

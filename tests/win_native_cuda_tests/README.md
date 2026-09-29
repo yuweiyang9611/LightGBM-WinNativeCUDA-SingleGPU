@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+GOSS must restore full-data warmup and safely switch CPU subset modes after parameter changes. See [the sampling transition fixes](../../docs/GOSS_STATE_TRANSITION_FIX.md).
+
 Late configuration rejection must preserve training state, and CUDA GOSS must train past warmup. See [the validation and GOSS fixes](../../docs/LATE_CONFIG_VALIDATION_FIX.md).
 
 Failed objective updates and unknown objective names must preserve a usable Booster on CPU and CUDA. See [the reset recovery fixes](../../docs/OBJECTIVE_RESET_RECOVERY_FIX.md).
