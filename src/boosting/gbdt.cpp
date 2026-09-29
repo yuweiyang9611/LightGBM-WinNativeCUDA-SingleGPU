@@ -381,7 +381,9 @@ bool GBDT::TrainOneIter(const score_t* gradients, const score_t* hessians) {
   }
 
   // bagging logic
-  if (!config_->bagging_by_query) {
+  // Built-in objectives already sample queries in Boosting(). Custom gradients
+  // bypass that method, so they still need their sampling step here.
+  if (!config_->bagging_by_query || objective_function_ == nullptr) {
     data_sample_strategy_->Bagging(iter_, tree_learner_.get(), gradients_.data(), hessians_.data());
   }
   const bool is_use_subset = data_sample_strategy_->is_use_subset();

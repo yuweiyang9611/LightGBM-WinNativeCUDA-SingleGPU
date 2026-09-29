@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Custom objectives must perform query sampling just like equivalent built-in objectives. See [the custom query fix](../../docs/CUSTOM_QUERY_BAGGING_FIX.md).
+
 Active query bagging requires groups, and empty groups must not overflow query buffers. See [the query input fixes](../../docs/QUERY_BAGGING_INPUT_VALIDATION_FIX.md).
 
 Query bagging must update out-of-bag scores and refresh query/mode/thread state after resets. See [the query sampling fixes](../../docs/QUERY_BAGGING_RESET_FIX.md).
