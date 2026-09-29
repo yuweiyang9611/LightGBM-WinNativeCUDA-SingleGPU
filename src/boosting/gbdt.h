@@ -119,9 +119,11 @@ class GBDT : public GBDTBase {
   * \param train_data New Training data
   * \param objective_function Training objective function
   * \param training_metrics Training metrics
+  * \param reset_training_state Refresh scores and learner state even for the same Dataset
   */
   void ResetTrainingData(const Dataset* train_data, const ObjectiveFunction* objective_function,
-                         const std::vector<const Metric*>& training_metrics) override;
+                         const std::vector<const Metric*>& training_metrics,
+                         bool reset_training_state = false) override;
 
   /*!
   * \brief Reset Boosting Config

@@ -48,7 +48,8 @@ class NCCLGBDT: public GBDT_T {
   }
 
   void ResetTrainingData(const Dataset* /*train_data*/, const ObjectiveFunction* /*objective_function*/,
-                         const std::vector<const Metric*>& /*training_metrics*/) override {
+                         const std::vector<const Metric*>& /*training_metrics*/,
+                         bool /*reset_training_state*/ = false) override {
     Log::Fatal("ResetTrainingData is not supported for NCCLGBDT.");
   }
 

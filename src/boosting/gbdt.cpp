@@ -739,19 +739,25 @@ double GBDT::GetLowerBoundValue() const {
 }
 
 void GBDT::ResetTrainingData(const Dataset* train_data, const ObjectiveFunction* objective_function,
-                             const std::vector<const Metric*>& training_metrics) {
+                             const std::vector<const Metric*>& training_metrics,
+                             bool reset_training_state) {
   if (train_data != train_data_ && !train_data_->CheckAlign(*train_data)) {
     Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
   }
 
-  objective_function_ = objective_function;
-  data_sample_strategy_->UpdateObjectiveFunction(objective_function);
-  if (objective_function_ != nullptr) {
-    CHECK_EQ(num_tree_per_iteration_, objective_function_->NumModelPerIteration());
-    if (objective_function_->IsRenewTreeOutput() && !config_->monotone_constraints.empty()) {
-      Log::Fatal("Cannot use ``monotone_constraints`` in %s objective, please disable it.", objective_function_->GetName());
+  if (objective_function != nullptr) {
+    CHECK_EQ(num_tree_per_iteration_, objective_function->NumModelPerIteration());
+    if (objective_function->IsRenewTreeOutput() && !config_->monotone_constraints.empty()) {
+      Log::Fatal("Cannot use ``monotone_constraints`` in %s objective, please disable it.", objective_function->GetName());
     }
   }
+  if (train_data->metadata().init_score() != nullptr &&
+      (train_data->metadata().num_init_score() % train_data->num_data() != 0 ||
+       train_data->metadata().num_init_score() / train_data->num_data() != num_tree_per_iteration_)) {
+    Log::Fatal("Number of class for initial score error");
+  }
+  objective_function_ = objective_function;
+  data_sample_strategy_->UpdateObjectiveFunction(objective_function);
   is_constant_hessian_ = GetIsConstHessian(objective_function);
 
   // push training metrics
@@ -767,10 +773,10 @@ void GBDT::ResetTrainingData(const Dataset* train_data, const ObjectiveFunction*
   tree_learner_->ResetBoostingOnGPU(boosting_on_gpu_);
   #endif  // USE_CUDA
 
-  if (train_data != train_data_) {
+  if (train_data != train_data_ || reset_training_state) {
     train_data_ = train_data;
     data_sample_strategy_->UpdateTrainingData(train_data);
-    // not same training data, need reset score and others
+    // Rebuild scores and row-dependent state after data or metadata changes.
     // create score tracker
     #ifdef USE_CUDA
     if (config_->device_type == std::string("cuda")) {

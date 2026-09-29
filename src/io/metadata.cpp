@@ -370,6 +370,12 @@ void Metadata::SetInitScoresFromIterator(It first, It last) {
   if (last - first == 0) {
     init_score_.clear();
     num_init_score_ = 0;
+    init_score_load_from_file_ = false;
+    #ifdef USE_CUDA
+    if (cuda_metadata_ != nullptr) {
+      cuda_metadata_->SetInitScore(nullptr, 0);
+    }
+    #endif
     return;
   }
   if (((last - first) % num_data_) != 0) {
@@ -524,6 +530,16 @@ void Metadata::SetWeightsFromIterator(It first, It last) {
   if (last - first == 0) {
     weights_.clear();
     num_weights_ = 0;
+    query_weights_.clear();
+    weight_load_from_file_ = false;
+    #ifdef USE_CUDA
+    if (cuda_metadata_ != nullptr) {
+      cuda_metadata_->SetWeights(nullptr, 0);
+      if (num_queries_ > 0) {
+        cuda_metadata_->SetQuery(query_boundaries_.data(), nullptr, num_queries_);
+      }
+    }
+    #endif
     return;
   }
   if (num_data_ != last - first) {
@@ -544,6 +560,9 @@ void Metadata::SetWeightsFromIterator(It first, It last) {
   #ifdef USE_CUDA
   if (cuda_metadata_ != nullptr) {
     cuda_metadata_->SetWeights(weights_.data(), weights_.size());
+    if (num_queries_ > 0) {
+      cuda_metadata_->SetQuery(query_boundaries_.data(), query_weights_.data(), num_queries_);
+    }
   }
   #endif  // USE_CUDA
 }

@@ -72,8 +72,8 @@ class RF : public GBDT {
   }
 
   void ResetTrainingData(const Dataset* train_data, const ObjectiveFunction* objective_function,
-    const std::vector<const Metric*>& training_metrics) override {
-    GBDT::ResetTrainingData(train_data, objective_function, training_metrics);
+    const std::vector<const Metric*>& training_metrics, bool reset_training_state = false) override {
+    GBDT::ResetTrainingData(train_data, objective_function, training_metrics, reset_training_state);
     if (iter_ + num_init_iteration_ > 0) {
       for (int cur_tree_id = 0; cur_tree_id < num_tree_per_iteration_; ++cur_tree_id) {
         train_score_updater_->MultiplyScore(1.0f / (iter_ + num_init_iteration_), cur_tree_id);

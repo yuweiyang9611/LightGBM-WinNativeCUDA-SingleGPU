@@ -2806,6 +2806,7 @@ class Dataset:
                     ctypes.c_int(_FIELD_TYPE_MAPPER[field_name]),
                 )
             )
+            self.version += 1
             return self
 
         # If the data is Arrow, we can just pass it to C
@@ -3121,13 +3122,13 @@ class Dataset:
             if nwd.is_into_series(weight):
                 if (nw.from_native(weight, series_only=True) == 1).all():
                     weight = None
-            elif np.all(weight == 1):
+            elif np.all(np.asarray(weight) == 1):
                 weight = None
         self.weight = weight
 
         # Set field
-        if self._handle is not None and weight is not None:
-            if isinstance(weight, pd_Series) or not nwd.is_into_series(weight):
+        if self._handle is not None:
+            if weight is not None and (isinstance(weight, pd_Series) or not nwd.is_into_series(weight)):
                 weight = _list_to_1d_numpy(data=weight, dtype=np.float32, name="weight")
             self.set_field("weight", weight)
             self.weight = self.get_field("weight")  # original values can be modified at cpp side
@@ -3156,7 +3157,7 @@ class Dataset:
             Dataset with set init score.
         """
         self.init_score = init_score
-        if self._handle is not None and init_score is not None:
+        if self._handle is not None:
             self.set_field("init_score", init_score)
             self.init_score = self.get_field("init_score")  # original values can be modified at cpp side
         return self

@@ -5129,6 +5129,42 @@ def test_rejected_training_dataset_replacement_preserves_booster():
     assert model.num_trees() == 3
 
 
+@pytest.mark.parametrize("quantized", [False, True])
+@pytest.mark.parametrize("change", ["add_weights", "remove_weights", "init_score", "clear_score"])
+def test_in_place_metadata_matches_replacement(quantized, change):
+    rng = np.random.default_rng(1729)
+    x = rng.normal(size=(2048, 4))
+    y = 3 * x[:, 0] + x[:, 1]
+    weights = (0.5 + np.abs(x[:, 2])).astype(np.float32)
+    old_weights = weights if change == "remove_weights" else None
+    new_weights = weights if change == "add_weights" else None
+    old_score = 0.7 * x[:, 0] if change == "clear_score" else None
+    new_score = 0.7 * x[:, 0] if change == "init_score" else None
+    params = {
+        "objective": "regression",
+        "use_quantized_grad": quantized,
+        "num_threads": 4,
+        "num_leaves": 7,
+        "max_bin": 31,
+        "seed": 1729,
+        "verbosity": -1,
+    }
+    original = lgb.Dataset(x, label=y, weight=old_weights, init_score=old_score)
+    reference = lgb.Dataset(x.copy(), label=y.copy(), weight=old_weights, init_score=old_score)
+    actual = lgb.train(params, original, num_boost_round=2, keep_training_booster=True)
+    expected = lgb.train(params, reference, num_boost_round=2, keep_training_booster=True)
+    if change in {"add_weights", "remove_weights"}:
+        original.set_weight(new_weights)
+    else:
+        original.set_init_score(new_score)
+    actual.update()
+    expected.update(train_set=lgb.Dataset(x, label=y, weight=new_weights, init_score=new_score, reference=reference))
+    np.testing.assert_allclose(actual.predict(x), expected.predict(x), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(
+        [item[2] for item in actual.eval_train()], [item[2] for item in expected.eval_train()], rtol=0, atol=1e-10
+    )
+
+
 def test_equal_predict_from_row_major_and_col_major_data():
     X_row, y = make_synthetic_regression()
     assert X_row.flags["C_CONTIGUOUS"]

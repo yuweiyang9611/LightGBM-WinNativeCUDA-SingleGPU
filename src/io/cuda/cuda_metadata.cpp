@@ -60,6 +60,10 @@ void CUDAMetadata::SetLabel(const label_t* label, data_size_t len) {
 }
 
 void CUDAMetadata::SetWeights(const label_t* weights, data_size_t len) {
+  if (len == 0) {
+    cuda_weights_.Clear();
+    return;
+  }
   cuda_weights_.InitFromHostMemory(weights, static_cast<size_t>(len));
 }
 
@@ -67,10 +71,16 @@ void CUDAMetadata::SetQuery(const data_size_t* query_boundaries, const label_t* 
   cuda_query_boundaries_.InitFromHostMemory(query_boundaries, static_cast<size_t>(num_queries) + 1);
   if (query_weights != nullptr) {
     cuda_query_weights_.InitFromHostMemory(query_weights, static_cast<size_t>(num_queries));
+  } else {
+    cuda_query_weights_.Clear();
   }
 }
 
 void CUDAMetadata::SetInitScore(const double* init_score, data_size_t len) {
+  if (len == 0) {
+    cuda_init_score_.Clear();
+    return;
+  }
   cuda_init_score_.InitFromHostMemory(init_score, len);
 }
 

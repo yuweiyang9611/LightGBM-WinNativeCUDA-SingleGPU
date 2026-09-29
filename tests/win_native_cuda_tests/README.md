@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+In-place metadata changes and failed-reset recovery are checked against equivalent Dataset replacements, including ranking and random forests. See [the metadata refresh fixes](../../docs/DATASET_METADATA_REFRESH_FIX.md).
+
 Percentile initialization and L1/quantile leaf updates are compared with independent calculations, including weighted, small-data and million-row cases. See [the percentile fixes](../../docs/CUDA_PERCENTILE_FIX.md).
 
 Repeated training Dataset replacement, quantization buffer resizing and rejection recovery are covered on CPU and CUDA. See [the Dataset replacement fixes](../../docs/TRAINING_DATASET_REPLACEMENT_FIX.md).

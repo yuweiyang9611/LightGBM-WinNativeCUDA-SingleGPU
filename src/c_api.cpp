@@ -188,7 +188,9 @@ class Booster {
 
     train_data_ = train_data;
     CheckDatasetForCUDA(train_data_);
-    CreateObjectiveAndMetrics();
+    auto training_state = CreateObjectiveAndMetrics(train_data_);
+    objective_fun_ = std::move(training_state.objective);
+    train_metric_ = std::move(training_state.metrics);
     // initialize the boosting
     if (config_.tree_learner == std::string("feature")) {
       Log::Fatal("Do not support feature parallel in c api");
@@ -220,45 +222,51 @@ class Booster {
     #endif
   }
 
-  void CreateObjectiveAndMetrics() {
+  struct TrainingState {
+    std::unique_ptr<ObjectiveFunction> objective;
+    std::vector<std::unique_ptr<Metric>> metrics;
+  };
+
+  TrainingState CreateObjectiveAndMetrics(const Dataset* data) const {
+    TrainingState state;
     // create objective function
-    objective_fun_.reset(ObjectiveFunction::CreateObjectiveFunction(config_.objective,
+    state.objective.reset(ObjectiveFunction::CreateObjectiveFunction(config_.objective,
                                                                     config_));
-    if (objective_fun_ == nullptr) {
+    if (state.objective == nullptr) {
       Log::Info("Using self-defined objective function");
     }
     // initialize the objective function
-    if (objective_fun_ != nullptr) {
-      objective_fun_->Init(train_data_->metadata(), train_data_->num_data());
+    if (state.objective != nullptr) {
+      state.objective->Init(data->metadata(), data->num_data());
     }
 
     // create training metric
-    train_metric_.clear();
     for (auto metric_type : config_.metric) {
       auto metric = std::unique_ptr<Metric>(
         Metric::CreateMetric(metric_type, config_));
       if (metric == nullptr) {
         continue;
       }
-      metric->Init(train_data_->metadata(), train_data_->num_data());
-      train_metric_.push_back(std::move(metric));
+      metric->Init(data->metadata(), data->num_data());
+      state.metrics.push_back(std::move(metric));
     }
-    train_metric_.shrink_to_fit();
+    state.metrics.shrink_to_fit();
+    return state;
   }
 
   void ResetTrainingData(const Dataset* train_data) {
-    if (train_data != train_data_) {
-      UNIQUE_LOCK(mutex_)
-      CheckDatasetForCUDA(train_data);
-      if (!train_data_->CheckAlign(*train_data)) {
-        Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
-      }
-      train_data_ = train_data;
-      CreateObjectiveAndMetrics();
-      // reset the boosting
-      boosting_->ResetTrainingData(train_data_,
-                                   objective_fun_.get(), Common::ConstPtrInVectorWrapper<Metric>(train_metric_));
+    UNIQUE_LOCK(mutex_)
+    CheckDatasetForCUDA(train_data);
+    if (train_data != train_data_ && !train_data_->CheckAlign(*train_data)) {
+      Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
     }
+    // Validate the new metadata before releasing the current objective/metrics.
+    auto training_state = CreateObjectiveAndMetrics(train_data);
+    boosting_->ResetTrainingData(train_data, training_state.objective.get(),
+                                 Common::ConstPtrInVectorWrapper<Metric>(training_state.metrics), true);
+    train_data_ = train_data;
+    objective_fun_ = std::move(training_state.objective);
+    train_metric_ = std::move(training_state.metrics);
   }
 
   static void CheckDatasetResetConfig(

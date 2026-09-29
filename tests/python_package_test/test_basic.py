@@ -95,6 +95,39 @@ def test_basic(tmp_path):
     np.testing.assert_raises_regex(lgb.basic.LightGBMError, bad_shape_error_msg, bst.predict, tname)
 
 
+@pytest.mark.parametrize("replacement", [None, [1.0] * 8, np.ones(8)])
+def test_set_weight_clears_native_values_and_updates_version(replacement):
+    data = lgb.Dataset(
+        np.arange(16).reshape(8, 2), label=np.arange(8), weight=np.arange(1, 9), params={"verbosity": -1}
+    ).construct()
+    version = data.version
+    data.set_weight(replacement)
+    assert data.get_weight() is None
+    assert data.get_field("weight") is None
+    assert data.version > version
+
+
+@pytest.mark.parametrize("invalid", ["labels", "init_score"])
+def test_rejected_label_reset_preserves_objective(invalid):
+    rng = np.random.default_rng(1729)
+    x = rng.normal(size=(512, 4))
+    y = np.arange(len(x)) % 3
+    params = {"objective": "multiclass", "num_class": 3, "num_threads": 4, "verbosity": -1}
+    original = lgb.Dataset(x, label=y)
+    model = lgb.train(params, original, num_boost_round=2, keep_training_booster=True)
+    expected = model.predict(x)
+    bad_labels = np.full(len(x), 99) if invalid == "labels" else y
+    bad_score = np.zeros(len(x) * 2) if invalid == "init_score" else None
+    bad = lgb.Dataset(x, label=bad_labels, init_score=bad_score, reference=original)
+    message = "Label must be in" if invalid == "labels" else "Number of class for initial score error"
+    with pytest.raises(lgb.basic.LightGBMError, match=message):
+        model.update(train_set=bad)
+    assert model.train_set is original
+    np.testing.assert_array_equal(model.predict(x), expected)
+    model.update()
+    assert model.num_trees() == 9
+
+
 def test_reset_parameter_on_loaded_model(tmp_path):
     X, y = load_breast_cancer(return_X_y=True)
     bst = lgb.train(
