@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Consecutive GOSS resets and ordinary bagging exit/re-enable must preserve valid Dataset and index ownership. See [the sampling lifetime fixes](../../docs/SAMPLING_RESET_LIFETIME_FIX.md).
+
 GOSS must restore full-data warmup and safely switch CPU subset modes after parameter changes. See [the sampling transition fixes](../../docs/GOSS_STATE_TRANSITION_FIX.md).
 
 Late configuration rejection must preserve training state, and CUDA GOSS must train past warmup. See [the validation and GOSS fixes](../../docs/LATE_CONFIG_VALIDATION_FIX.md).

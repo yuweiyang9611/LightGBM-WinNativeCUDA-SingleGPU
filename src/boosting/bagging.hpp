@@ -15,7 +15,7 @@ namespace LightGBM {
 class BaggingSampleStrategy : public SampleStrategy {
  public:
   BaggingSampleStrategy(const Config* config, const Dataset* train_data, const ObjectiveFunction* objective_function, int num_tree_per_iteration)
-    : need_re_bagging_(false) {
+    : need_re_bagging_(false), learner_uses_subset_(false) {
     config_ = config;
     train_data_ = train_data;
     num_data_ = train_data->num_data();
@@ -30,6 +30,15 @@ class BaggingSampleStrategy : public SampleStrategy {
 
   void Bagging(int iter, TreeLearner* tree_learner, score_t* /*gradients*/, score_t* /*hessians*/) override {
     Common::FunctionTimer fun_timer("GBDT::Bagging", global_timer);
+    if (learner_uses_subset_ && !is_use_subset_) {
+      tree_learner->ResetTrainingData(train_data_,
+        objective_function_ != nullptr && objective_function_->IsConstantHessian());
+      learner_uses_subset_ = false;
+    }
+    if (bag_data_indices_.empty()) {
+      tree_learner->SetBaggingData(nullptr, nullptr, num_data_);
+      return;
+    }
     // if need bagging
     if ((bag_data_cnt_ < num_data_ && iter % config_->bagging_freq == 0) ||
       need_re_bagging_) {
@@ -128,6 +137,7 @@ class BaggingSampleStrategy : public SampleStrategy {
                                        bag_data_cnt_);
         } else {
         #endif  // USE_CUDA
+          learner_uses_subset_ = true;
           tree_learner->SetBaggingData(tmp_subset_.get(), bag_data_indices_.data(),
                                        bag_data_cnt_);
         #ifdef USE_CUDA
@@ -205,6 +215,9 @@ class BaggingSampleStrategy : public SampleStrategy {
         need_resize_gradients_ = true;
       }
     } else {
+      config_ = config;
+      balanced_bagging_ = false;
+      need_re_bagging_ = false;
       bag_data_cnt_ = num_data_;
       bag_data_indices_.clear();
       #ifdef USE_CUDA
@@ -276,6 +289,7 @@ class BaggingSampleStrategy : public SampleStrategy {
 
   /*! \brief whether need restart bagging in continued training */
   bool need_re_bagging_;
+  bool learner_uses_subset_;
   /*! \brief number of threads */
   int num_threads_;
   /*! \brief query boundaries of the in-bag queries */

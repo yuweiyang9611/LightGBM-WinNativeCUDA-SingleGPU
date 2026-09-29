@@ -94,7 +94,7 @@ class GOSSStrategy : public SampleStrategy {
     }
   }
 
-  void ResetSampleConfig(const Config* config, bool /*is_change_dataset*/) override {
+  void ResetSampleConfig(const Config* config, bool is_change_dataset) override {
     ValidateSampleConfig(config);
     // Cannot use bagging in GOSS
     config_ = config;
@@ -124,8 +124,12 @@ class GOSSStrategy : public SampleStrategy {
     if (config_->device_type != std::string("cuda") && config_->top_rate + config_->other_rate <= 0.5) {
       auto bag_data_cnt = static_cast<data_size_t>((config_->top_rate + config_->other_rate) * num_data_);
       bag_data_cnt = std::max(1, bag_data_cnt);
-      tmp_subset_.reset(new Dataset(bag_data_cnt));
-      tmp_subset_->CopyFeatureMapperFrom(train_data_);
+      // The learner may still reference this Dataset between parameter resets.
+      // A real Dataset reset has already detached it before reaching this call.
+      if (tmp_subset_ == nullptr || is_change_dataset) {
+        tmp_subset_.reset(new Dataset(bag_data_cnt));
+        tmp_subset_->CopyFeatureMapperFrom(train_data_);
+      }
       is_use_subset_ = true;
     }
     // flag to not bagging first
