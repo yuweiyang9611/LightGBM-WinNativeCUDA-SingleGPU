@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Categorical minimum-group boundaries and extra-tree random thresholds are checked against independent losses and repeated seeds. See [the categorical settings fixes](../../docs/CUDA_CATEGORICAL_SETTINGS_FIX.md).
+
 Large-bin histogram workspace resizing is checked while training Datasets grow and shrink, including GPU memory checks. See [the workspace fix](../../docs/CUDA_HISTOGRAM_WORKSPACE_FIX.md).
 
 In-place metadata changes and failed-reset recovery are checked against equivalent Dataset replacements, including ranking and random forests. See [the metadata refresh fixes](../../docs/DATASET_METADATA_REFRESH_FIX.md).

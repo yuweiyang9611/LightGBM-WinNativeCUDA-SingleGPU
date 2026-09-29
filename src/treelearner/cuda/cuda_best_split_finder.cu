@@ -507,6 +507,43 @@ __device__ void FindBestSplitsDiscretizedForLeafKernelInner(
   }
 }
 
+// Group boundaries depend on the previous eligible boundary, so construct this
+// small mask sequentially and leave gain evaluation parallel. Sorting scores
+// are no longer needed and their buffer can hold the mask without an allocation.
+template <typename INDEX_T>
+__device__ void MarkCategoricalSplitCandidates(
+  const hist_t* feature_hist_ptr, const INDEX_T* sorted_indices, double* candidates,
+  const int used_bin, const int max_num_cat, const bool reverse,
+  const double cnt_factor, const data_size_t num_data, const double sum_hessians,
+  const data_size_t min_data_in_leaf, const double min_sum_hessian_in_leaf,
+  const data_size_t min_data_per_group) {
+  if (threadIdx.x == 0) {
+    data_size_t left_count = 0;
+    data_size_t group_count = 0;
+    double left_hessian = kEpsilon;
+    for (int i = 0; i < max_num_cat; ++i) {
+      const int bin = sorted_indices[reverse ? used_bin - 1 - i : i];
+      const double hess = feature_hist_ptr[2 * bin + 1];
+      const data_size_t count = static_cast<data_size_t>(__double2int_rn(hess * cnt_factor));
+      left_count += count;
+      group_count += count;
+      left_hessian += hess;
+      candidates[i] = 0.0;
+      if (left_count < min_data_in_leaf || left_hessian < min_sum_hessian_in_leaf) {
+        continue;
+      }
+      const data_size_t right_count = num_data - left_count;
+      if (right_count < min_data_in_leaf || right_count < min_data_per_group ||
+          sum_hessians - left_hessian < min_sum_hessian_in_leaf || group_count < min_data_per_group) {
+        continue;
+      }
+      candidates[i] = 1.0;
+      group_count = 0;
+    }
+  }
+  __syncthreads();
+}
+
 template <bool USE_RAND, bool USE_L1, bool USE_SMOOTHING>
 __device__ void FindBestSplitsForLeafKernelCategoricalInner(
   // input feature information
@@ -655,7 +692,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner(
     __syncthreads();
     const int max_num_cat = min(max_cat_threshold, (used_bin + 1) / 2);
 
-    if (USE_RAND) {
+    if (USE_RAND && threadIdx_x == 0) {
       rand_threshold = 0;
       const int max_threshold = max(min(max_num_cat, used_bin) - 1, 0);
       if (max_threshold > 0) {
@@ -664,6 +701,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner(
     }
 
     // left to right
+    MarkCategoricalSplitCandidates(feature_hist_ptr, shared_index_buffer, shared_value_buffer,
+      used_bin, max_num_cat, false, cnt_factor, num_data, sum_hessians,
+      min_data_in_leaf, min_sum_hessian_in_leaf, min_data_per_group);
     double grad = 0.0f;
     double hess = 0.0f;
     if (threadIdx_x < used_bin && threadIdx_x < max_num_cat) {
@@ -685,6 +725,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner(
       const data_size_t right_count = num_data - left_count;
       if (sum_left_hessian >= min_sum_hessian_in_leaf && left_count >= min_data_in_leaf &&
         sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf &&
+        shared_value_buffer[threadIdx_x] != 0.0 &&
         (!USE_RAND || threadIdx_x == static_cast<int>(rand_threshold))) {
         double current_gain = CUDALeafSplits::GetSplitGains<USE_L1, USE_SMOOTHING>(
           sum_left_gradient, sum_left_hessian, sum_right_gradient,
@@ -703,6 +744,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner(
     __syncthreads();
 
     // right to left
+    MarkCategoricalSplitCandidates(feature_hist_ptr, shared_index_buffer, shared_value_buffer,
+      used_bin, max_num_cat, true, cnt_factor, num_data, sum_hessians,
+      min_data_in_leaf, min_sum_hessian_in_leaf, min_data_per_group);
     grad = 0.0f;
     hess = 0.0f;
     if (threadIdx_x < used_bin && threadIdx_x < max_num_cat) {
@@ -724,6 +768,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner(
       const data_size_t right_count = num_data - left_count;
       if (sum_left_hessian >= min_sum_hessian_in_leaf && left_count >= min_data_in_leaf &&
         sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf &&
+        shared_value_buffer[threadIdx_x] != 0.0 &&
         (!USE_RAND || threadIdx_x == static_cast<int>(rand_threshold))) {
         double current_gain = CUDALeafSplits::GetSplitGains<USE_L1, USE_SMOOTHING>(
           sum_left_gradient, sum_left_hessian, sum_right_gradient,
@@ -1447,7 +1492,7 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
     BitonicArgSortDevice<double, data_size_t, true, NUM_THREADS_PER_BLOCK_BEST_SPLIT_FINDER, 9>(
       hist_stat_buffer_ptr, hist_index_buffer_ptr, task->num_bin - task->mfb_offset);
     const int max_num_cat = min(max_cat_threshold, (used_bin + 1) / 2);
-    if (USE_RAND) {
+    if (USE_RAND && threadIdx_x == 0) {
       rand_threshold = 0;
       const int max_threshold = max(min(max_num_cat, used_bin) - 1, 0);
       if (max_threshold > 0) {
@@ -1457,6 +1502,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
     __syncthreads();
 
     // left to right
+    MarkCategoricalSplitCandidates(feature_hist_ptr, hist_index_buffer_ptr, hist_stat_buffer_ptr,
+      used_bin, max_num_cat, false, cnt_factor, num_data, sum_hessians,
+      min_data_in_leaf, min_sum_hessian_in_leaf, min_data_per_group);
     for (int bin = static_cast<int>(threadIdx_x); bin < used_bin && bin < max_num_cat; bin += static_cast<int>(blockDim.x)) {
       const int bin_offset = (hist_index_buffer_ptr[bin] << 1);
       hist_grad_buffer_ptr[bin] = feature_hist_ptr[bin_offset];
@@ -1477,7 +1525,8 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
       const double sum_right_hessian = sum_hessians - sum_left_hessian;
       const data_size_t right_count = num_data - left_count;
       if (sum_left_hessian >= min_sum_hessian_in_leaf && left_count >= min_data_in_leaf &&
-        sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf) {
+        sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf &&
+        hist_stat_buffer_ptr[bin] != 0.0 && (!USE_RAND || bin == rand_threshold)) {
         double current_gain = CUDALeafSplits::GetSplitGains<USE_L1, USE_SMOOTHING>(
           sum_left_gradient, sum_left_hessian, sum_right_gradient,
           sum_right_hessian, lambda_l1,
@@ -1496,6 +1545,9 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
     __syncthreads();
 
     // right to left
+    MarkCategoricalSplitCandidates(feature_hist_ptr, hist_index_buffer_ptr, hist_stat_buffer_ptr,
+      used_bin, max_num_cat, true, cnt_factor, num_data, sum_hessians,
+      min_data_in_leaf, min_sum_hessian_in_leaf, min_data_per_group);
     for (int bin = static_cast<int>(threadIdx_x); bin < used_bin && bin < max_num_cat; bin += static_cast<int>(blockDim.x)) {
       const int bin_offset = (hist_index_buffer_ptr[used_bin - 1 - bin] << 1);
       hist_grad_buffer_ptr[bin] = feature_hist_ptr[bin_offset];
@@ -1516,7 +1568,8 @@ __device__ void FindBestSplitsForLeafKernelCategoricalInner_GlobalMemory(
       const double sum_right_hessian = sum_hessians - sum_left_hessian;
       const data_size_t right_count = num_data - left_count;
       if (sum_left_hessian >= min_sum_hessian_in_leaf && left_count >= min_data_in_leaf &&
-        sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf) {
+        sum_right_hessian >= min_sum_hessian_in_leaf && right_count >= min_data_in_leaf &&
+        hist_stat_buffer_ptr[bin] != 0.0 && (!USE_RAND || bin == rand_threshold)) {
         double current_gain = CUDALeafSplits::GetSplitGains<USE_L1, USE_SMOOTHING>(
           sum_left_gradient, sum_left_hessian, sum_right_gradient,
           sum_right_hessian, lambda_l1,
