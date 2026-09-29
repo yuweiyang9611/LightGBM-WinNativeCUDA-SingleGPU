@@ -107,6 +107,11 @@ if [[ $OS_NAME == "macos" ]]; then
         # install Homebrew packages
         brew update-reset --auto-update
         brew update --auto-update
+        # Hosted images can retain the old OpenSSL executable symlink, which
+        # prevents qpdf's openssl@3 dependency from linking successfully.
+        if brew list --versions openssl@1.1 >/dev/null 2>&1; then
+            brew unlink openssl@1.1
+        fi
         brew install "${brew_packages[@]}" || exit 1
 
         # install R

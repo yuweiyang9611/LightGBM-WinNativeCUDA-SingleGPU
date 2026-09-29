@@ -765,8 +765,12 @@ Tree* GPUTreeLearner::Train(const score_t* gradients, const score_t *hessians, b
 }
 
 void GPUTreeLearner::ResetTrainingDataInner(const Dataset* train_data, bool is_constant_hessian, bool reset_multi_val_bin) {
+  const bool hessian_changed = is_constant_hessian != share_state_->is_constant_hessian;
   SerialTreeLearner::ResetTrainingDataInner(train_data, is_constant_hessian, reset_multi_val_bin);
   num_feature_groups_ = train_data_->num_feature_groups();
+  if (hessian_changed) {
+    BuildGPUKernels();
+  }
   // GPU memory has to been reallocated because data may have been changed
   AllocateGPUMemory();
   // setup GPU kernel arguments after we allocating all the buffers

@@ -256,6 +256,7 @@ class Booster {
 
   void ResetTrainingData(const Dataset* train_data) {
     UNIQUE_LOCK(mutex_)
+    OMP_SET_NUM_THREADS(config_.num_threads);
     CheckDatasetForCUDA(train_data);
     if (train_data != train_data_ && !train_data_->CheckAlign(*train_data)) {
       Log::Fatal("Cannot reset training data, since new training data has different bin mappers");
@@ -447,6 +448,7 @@ class Booster {
 
   bool TrainOneIter() {
     UNIQUE_LOCK(mutex_)
+    OMP_SET_NUM_THREADS(config_.num_threads);
     return boosting_->TrainOneIter(nullptr, nullptr);
   }
 
@@ -457,6 +459,7 @@ class Booster {
 
   bool TrainOneIter(const score_t* gradients, const score_t* hessians) {
     UNIQUE_LOCK(mutex_)
+    OMP_SET_NUM_THREADS(config_.num_threads);
     return boosting_->TrainOneIter(gradients, hessians);
   }
 

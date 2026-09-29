@@ -25,6 +25,7 @@ fi
 
 PY_MINOR_VER=$(python -c "import sys; print(sys.version_info.minor)")
 if [ "$PY_MINOR_VER" -gt 7 ]; then
+    # Includes the required cmake/WindowsCudaDeviceLink.cmake module.
     echo "pydistcheck..."
     pip install 'pydistcheck>=0.9.1'
     if { test "${TASK}" = "cuda" || test "${METHOD}" = "wheel"; }; then
@@ -33,7 +34,7 @@ if [ "$PY_MINOR_VER" -gt 7 ]; then
             --ignore 'compiled-objects-have-debug-symbols'\
             --ignore 'distro-too-large-compressed' \
             --max-allowed-size-uncompressed '550M' \
-            --max-allowed-files 807 \
+            --max-allowed-files 808 \
             "$(echo "${DIST_DIR}"/*)" || exit 1
     elif { test "$(uname -m)" = "aarch64"; }; then
         pydistcheck \
@@ -41,14 +42,14 @@ if [ "$PY_MINOR_VER" -gt 7 ]; then
             --ignore 'compiled-objects-have-debug-symbols' \
             --max-allowed-size-compressed '5M' \
             --max-allowed-size-uncompressed '15M' \
-            --max-allowed-files 807 \
+            --max-allowed-files 808 \
             "$(echo "${DIST_DIR}"/*)" || exit 1
     else
         pydistcheck \
             --inspect \
             --max-allowed-size-compressed '5M' \
             --max-allowed-size-uncompressed '15M' \
-            --max-allowed-files 807 \
+            --max-allowed-files 808 \
             "$(echo "${DIST_DIR}"/*)" || exit 1
     fi
 else
