@@ -47,7 +47,7 @@ else  # Linux
             curl
     fi
     CMAKE_VERSION="3.30.0"
-    sh "${BUILD_DIRECTORY}/.ci/download-cmake.sh" \
+    sh "$(dirname "${BASH_SOURCE[0]}")/download-cmake.sh" \
         "${CMAKE_VERSION}" "${ARCH}" "cmake-${CMAKE_VERSION}-linux-${ARCH}.sh"
     sudo mkdir /opt/cmake || exit 1
     sudo sh "cmake-${CMAKE_VERSION}-linux-${ARCH}.sh" --skip-license --prefix=/opt/cmake || exit 1

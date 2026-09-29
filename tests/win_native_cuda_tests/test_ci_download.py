@@ -10,6 +10,44 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_setup_finds_download_helper_without_build_directory(tmp_path: Path) -> None:
+    shell = shutil.which("bash")
+    if shell is None:
+        pytest.skip("Requires bash on PATH")
+    mock_bin = tmp_path / "bin"
+    mock_bin.mkdir()
+    mocks = {
+        "uname": "printf 'x86_64\\n'",
+        "apt": "exit 0",
+        "sudo": "exit 0",
+        "curl": """while test "$1" != --output; do shift; done
+printf '#!/bin/sh\\nexit 0\\n' > "$2"
+echo called > download-called""",
+    }
+    for name, body in mocks.items():
+        target = mock_bin / name
+        target.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8", newline="\n")
+        target.chmod(0o755)
+    env = dict(os.environ, OS_NAME="linux", COMPILER="gcc", TASK="cpp-tests")
+    env.pop("BUILD_DIRECTORY", None)
+    result = subprocess.run(
+        [
+            shell,
+            "-c",
+            'PATH="$PWD/bin:$PATH"; export PATH; exec bash "$1"',
+            "setup-test",
+            str(REPO_ROOT / ".ci/setup.sh"),
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "download-called").read_text().strip() == "called"
+
+
 @pytest.mark.parametrize("mode", ["html_once", "http_once", "always_html"])
 def test_cmake_download_retries_invalid_responses(tmp_path: Path, mode: str) -> None:
     shell = shutil.which("sh")

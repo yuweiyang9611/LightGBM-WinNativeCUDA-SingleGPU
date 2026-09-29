@@ -36,3 +36,16 @@ and [R workflow](https://github.com/yuweiyang9611/LightGBM-WinNativeCUDA-SingleG
 
 The OpenCL and macOS dependency fixes require confirmation on the corresponding
 GitHub runners. No tests or required workflow jobs were disabled.
+
+## Follow-up on the first recovery run
+
+The static-analysis setup exposed an incorrect assumption in the download-helper
+call: lint/docs do not set `BUILD_DIRECTORY`. Resolve the helper relative to
+`setup.sh` instead; an execution test with the variable absent reproduces the
+failure and passes after the repair.
+
+The macOS R runner still had an OpenSSL 1.1 link even though Homebrew no longer
+listed that formula. Replace the formula-list check with a narrowly scoped
+cleanup of the exact legacy `bin/openssl` symlink, leaving regular files and
+other symlink targets intact. Local shell checks pass; symbolic-link tests need
+a host that permits symlink creation (they skip on restricted Windows hosts).
