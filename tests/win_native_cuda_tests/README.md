@@ -55,6 +55,8 @@ $env:LIGHTGBM_WHEEL_BUILD_TAG = "1cuda132sm89ptx"
 
 ## Kernel correctness regressions
 
+Query bagging must update out-of-bag scores and refresh query/mode/thread state after resets. See [the query sampling fixes](../../docs/QUERY_BAGGING_RESET_FIX.md).
+
 Bagging resets must retain pending resampling, leave balanced mode correctly and honor new random seeds. See [the reset flag fixes](../../docs/BAGGING_RESET_FLAGS_FIX.md).
 
 Consecutive GOSS resets and ordinary bagging exit/re-enable must preserve valid Dataset and index ownership. See [the sampling lifetime fixes](../../docs/SAMPLING_RESET_LIFETIME_FIX.md).

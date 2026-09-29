@@ -15,7 +15,7 @@ namespace LightGBM {
 class BaggingSampleStrategy : public SampleStrategy {
  public:
   BaggingSampleStrategy(const Config* config, const Dataset* train_data, const ObjectiveFunction* objective_function, int num_tree_per_iteration)
-    : need_re_bagging_(false), learner_uses_subset_(false) {
+    : need_re_bagging_(false), learner_uses_subset_(false), num_sampled_queries_(0) {
     config_ = config;
     train_data_ = train_data;
     num_data_ = train_data->num_data();
@@ -72,14 +72,16 @@ class BaggingSampleStrategy : public SampleStrategy {
         sampled_query_boundaries_[0] = 0;
         OMP_INIT_EX();
         #pragma omp parallel for schedule(static) num_threads(num_threads_)
-        for (data_size_t i = 0; i < num_sampled_queries_; ++i) {
+        // Expand both in-bag and out-of-bag queries: score updates need the
+        // complete row permutation, not only the rows used to fit this tree.
+        for (data_size_t i = 0; i < num_queries_; ++i) {
           OMP_LOOP_EX_BEGIN();
           sampled_query_boundaries_[i + 1] = query_boundaries_[bag_query_indices_[i] + 1] - query_boundaries_[bag_query_indices_[i]];
           OMP_LOOP_EX_END();
         }
         OMP_THROW_EX();
 
-        const int num_blocks = Threading::For<data_size_t>(0, num_sampled_queries_ + 1, 128, [this](int thread_index, data_size_t start_index, data_size_t end_index) {
+        const int num_blocks = Threading::For<data_size_t>(0, num_queries_ + 1, 128, [this](int thread_index, data_size_t start_index, data_size_t end_index) {
           for (data_size_t i = start_index + 1; i < end_index; ++i) {
             sampled_query_boundaries_[i] += sampled_query_boundaries_[i - 1];
           }
@@ -90,7 +92,7 @@ class BaggingSampleStrategy : public SampleStrategy {
           sampled_query_boundaries_thread_buffer_[thread_index] += sampled_query_boundaries_thread_buffer_[thread_index - 1];
         }
 
-        Threading::For<data_size_t>(0, num_sampled_queries_ + 1, 128, [this](int thread_index, data_size_t start_index, data_size_t end_index) {
+        Threading::For<data_size_t>(0, num_queries_ + 1, 128, [this](int thread_index, data_size_t start_index, data_size_t end_index) {
           if (thread_index > 0) {
             for (data_size_t i = start_index; i < end_index; ++i) {
               sampled_query_boundaries_[i] += sampled_query_boundaries_thread_buffer_[thread_index - 1];
@@ -100,7 +102,7 @@ class BaggingSampleStrategy : public SampleStrategy {
 
         bag_data_cnt_ = sampled_query_boundaries_[num_sampled_queries_];
 
-        Threading::For<data_size_t>(0, num_sampled_queries_, 1, [this](int /*thread_index*/, data_size_t start_index, data_size_t end_index) {
+        Threading::For<data_size_t>(0, num_queries_, 1, [this](int /*thread_index*/, data_size_t start_index, data_size_t end_index) {
           for (data_size_t sampled_query_id = start_index; sampled_query_id < end_index; ++sampled_query_id) {
             const data_size_t query_index = bag_query_indices_[sampled_query_id];
             const data_size_t data_index_start = query_boundaries_[query_index];
@@ -148,6 +150,10 @@ class BaggingSampleStrategy : public SampleStrategy {
   }
 
   void ResetSampleConfig(const Config* config, bool is_change_dataset) override {
+    num_threads_ = OMP_NUM_THREADS();
+    num_queries_ = train_data_->metadata().num_queries();
+    query_boundaries_ = train_data_->metadata().query_boundaries();
+    sampled_query_boundaries_thread_buffer_.resize(num_threads_, 0);
     need_resize_gradients_ = false;
     // if need bagging, create buffer
     data_size_t num_pos_data = 0;
@@ -159,6 +165,7 @@ class BaggingSampleStrategy : public SampleStrategy {
       if (!is_change_dataset &&
         config_ != nullptr && config_->bagging_fraction == config->bagging_fraction && config_->bagging_freq == config->bagging_freq
         && config_->bagging_seed == config->bagging_seed
+        && config_->bagging_by_query == config->bagging_by_query
         && config_->pos_bagging_fraction == config->pos_bagging_fraction && config_->neg_bagging_fraction == config->neg_bagging_fraction) {
         config_ = config;
         return;
@@ -219,6 +226,7 @@ class BaggingSampleStrategy : public SampleStrategy {
       balanced_bagging_ = false;
       need_re_bagging_ = false;
       bag_data_cnt_ = num_data_;
+      num_sampled_queries_ = 0;
       bag_data_indices_.clear();
       #ifdef USE_CUDA
       cuda_bag_data_indices_.Clear();
@@ -237,7 +245,7 @@ class BaggingSampleStrategy : public SampleStrategy {
   }
 
   const data_size_t* sampled_query_indices() const override {
-    return bag_query_indices_.data();
+    return bag_data_indices_.empty() ? nullptr : bag_query_indices_.data();
   }
 
  private:
